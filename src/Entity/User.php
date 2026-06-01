@@ -7,6 +7,7 @@ use Doctrine\ORM\Mapping as ORM;
  * Entidad Doctrine que representa la tabla de usuarios.
  */
 #[ORM\Entity(repositoryClass: "App\Repository\UserRepository")]
+#[ORM\Table(name: "usuarios")]
 class User {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -16,7 +17,7 @@ class User {
     #[ORM\Column(type: "string", length: 50, unique: true)]
     private string $usuario;
 
-    #[ORM\Column(type: "string", length: 100)]
+    #[ORM\Column(type: "string", length: 255)] // Aumentado a 255 para soportar el hash bcrypt
     private string $password;
 
     #[ORM\Column(type: "string", length: 100)]
@@ -28,11 +29,17 @@ class User {
     #[ORM\Column(type: "string", length: 20, unique: true)]
     private string $dni;
 
-    #[ORM\Column(type: "string", length: 100)]
+    #[ORM\Column(type: "string", length: 100, unique: true)]
     private string $email;
 
     #[ORM\Column(type: "string", length: 20)]
     private string $rol;
+
+    #[ORM\Column(type: "boolean", options: ["default" => 1])]
+    private bool $estado = true; // Para el borrado lógico
+
+    #[ORM\Column(name: "foto_perfil", type: "string", length: 255, nullable: true)]
+    private ?string $fotoPerfil = null;
 
     // --- Getters y setters ---
     public function getId(): int { return $this->id; }
@@ -57,4 +64,10 @@ class User {
 
     public function getRol(): string { return $this->rol; }
     public function setRol(string $rol): void { $this->rol = $rol; }
+
+    public function isEstado(): bool { return $this->estado; }
+    public function setEstado(bool $estado): void { $this->estado = $estado; }
+
+    public function getFotoPerfil(): ?string { return $this->fotoPerfil; }
+    public function setFotoPerfil(?string $fotoPerfil): void { $this->fotoPerfil = $fotoPerfil; }
 }

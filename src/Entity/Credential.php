@@ -2,54 +2,83 @@
 namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
-use App\Enum\CredentialStatus;
 
 /**
- * Entidad Doctrine que representa la tabla de credenciales en la base de datos.
- * Aquí solo se definen atributos y mapeos, sin lógica de negocio.
+ * Entidad Doctrine que representa la tabla de credenciales.
  */
 #[ORM\Entity(repositoryClass: "App\Repository\CredentialRepository")]
+#[ORM\Table(name: "credenciales")]
 class Credential {
+    
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column(type: "integer")]
+    #[ORM\Column(name: "id_credential", type: "integer")]
     private int $id;
 
-    #[ORM\Column(type: "string", length: 100)]
-    private string $nombre;
+    /**
+     * Relación con la entidad User.
+     * Mapea a la columna "id_usuario" en la base de datos.
+     */
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: "id_usuario", referencedColumnName: "id", nullable: false, onDelete: "CASCADE")]
+    private User $usuario;
 
-    #[ORM\Column(type: "string", length: 100)]
-    private string $apellido;
+    #[ORM\Column(name: "fecha_emision", type: "date")]
+    private \DateTimeInterface $fechaEmision;
 
-    #[ORM\Column(type: "string", length: 20)]
-    private string $dni;
-
-    #[ORM\Column(type: "string", length: 50)]
-    private string $rol;
-
-    #[ORM\Column(type: "datetime")]
+    #[ORM\Column(name: "fecha_vencimiento", type: "date")]
     private \DateTimeInterface $fechaVencimiento;
 
-    #[ORM\Column(type: "string", enumType: CredentialStatus::class)]
-    private CredentialStatus $estado;
-
     #[ORM\Column(type: "json", nullable: true)]
-    private array $sellos = [];
+    private ?array $sellos = null;
 
-    // Getters y setters (solo acceso a datos, sin lógica)
-    public function getId(): int { return $this->id; }
-    public function getNombre(): string { return $this->nombre; }
-    public function setNombre(string $nombre): void { $this->nombre = $nombre; }
-    public function getApellido(): string { return $this->apellido; }
-    public function setApellido(string $apellido): void { $this->apellido = $apellido; }
-    public function getDni(): string { return $this->dni; }
-    public function setDni(string $dni): void { $this->dni = $dni; }
-    public function getRol(): string { return $this->rol; }
-    public function setRol(string $rol): void { $this->rol = $rol; }
-    public function getFechaVencimiento(): \DateTimeInterface { return $this->fechaVencimiento; }
-    public function setFechaVencimiento(\DateTimeInterface $fecha): void { $this->fechaVencimiento = $fecha; }
-    public function getEstado(): CredentialStatus { return $this->estado; }
-    public function setEstado(CredentialStatus $estado): void { $this->estado = $estado; }
-    public function getSellos(): array { return $this->sellos; }
-    public function setSellos(array $sellos): void { $this->sellos = $sellos; }
+    // --- Getters y Setters ---
+
+    public function getId(): int {
+        return $this->id;
+    }
+
+    public function getUsuario(): User {
+        return $this->usuario;
+    }
+
+    public function setUsuario(User $usuario): void {
+        $this->usuario = $usuario;
+    }
+
+    public function getFechaEmision(): \DateTimeInterface {
+        return $this->fechaEmision;
+    }
+
+    public function setFechaEmision(\DateTimeInterface $fechaEmision): void {
+        $this->fechaEmision = $fechaEmision;
+    }
+
+    public function getFechaVencimiento(): \DateTimeInterface {
+        return $this->fechaVencimiento;
+    }
+
+    public function setFechaVencimiento(\DateTimeInterface $fechaVencimiento): void {
+        $this->fechaVencimiento = $fechaVencimiento;
+    }
+
+    public function getSellos(): ?array {
+        return $this->sellos;
+    }
+
+    public function setSellos(?array $sellos): void {
+        $this->sellos = $sellos;
+    }
+
+    /**
+     * Método de la Regla B: El estado no se lee de la BD, se calcula dinámicamente.
+     */
+    public function getEstado(): string {
+        $hoy = new \DateTimeImmutable('today');
+        // Si hoy es mayor estricto que la fecha de vencimiento, está vencida.
+        if ($hoy > $this->fechaVencimiento) {
+            return 'VENCIDA';
+        }
+        return 'ACTIVA';
+    }
 }

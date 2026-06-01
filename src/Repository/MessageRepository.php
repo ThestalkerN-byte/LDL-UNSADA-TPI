@@ -2,6 +2,7 @@
 namespace App\Repository;
 
 use App\Entity\Message;
+use App\Entity\User;
 use Doctrine\ORM\EntityRepository;
 
 /**
@@ -11,12 +12,12 @@ use Doctrine\ORM\EntityRepository;
 class MessageRepository extends EntityRepository {
 
     /**
-     * Buscar mensajes por remitente.
+     * Buscar mensajes por usuario (ID o Instancia).
      */
-    public function findByRemitente(string $remitente): array {
+    public function findByUser(User $user): array {
         return $this->createQueryBuilder('m')
-            ->where('m.remitente = :remitente')
-            ->setParameter('remitente', $remitente)
+            ->where('m.user = :user')
+            ->setParameter('user', $user)
             ->getQuery()
             ->getResult();
     }
