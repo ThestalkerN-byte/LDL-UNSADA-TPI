@@ -12,9 +12,7 @@
 require_once __DIR__ . '/vendor/autoload.php';
 
 // 2. Carga el bootstrap de Doctrine y obtiene el $entityManager configurado.
-//    ⚠️  STOP: La conexión a la BD está pendiente del equipo de DB.
-//              Cuando entreguen el servidor, solo hay que actualizar config/bootstrap.php.
-require_once __DIR__ . '/config/bootstrap.php';
+$entityManager = require __DIR__ . '/config/bootstrap.php';
 
 // 3. Cabeceras globales: Todas las respuestas de esta API son JSON con UTF-8
 header('Content-Type: application/json; charset=utf-8');

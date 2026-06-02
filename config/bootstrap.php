@@ -18,15 +18,18 @@ use Doctrine\ORM\ORMSetup;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-// --- PARÁMETROS DE CONEXIÓN (Completar cuando el equipo de DB entregue el servidor) ---
+// --- PARÁMETROS DE CONEXIÓN - Aiven Cloud MySQL ---
 $connectionParams = [
     'driver'   => 'pdo_mysql',
-    'host'     => 'localhost',
-    'port'     => 3306,
-    'dbname'   => 'credenciales_db',
-    'user'     => 'root',       // TODO: reemplazar con el usuario real
-    'password' => 'root',      // TODO: reemplazar con la contraseña real
+    'host'     => 'mysql-35e2006e-ldl-52b5.h.aivencloud.com',
+    'port'     => 26065,
+    'dbname'   => 'defaultdb',
+    'user'     => 'avnadmin',
+    'password' => 'AVNS_5akJIflVWGJfNNO7dxU',
     'charset'  => 'utf8mb4',
+    'driverOptions' => [
+        \PDO::MYSQL_ATTR_SSL_MODE => 'REQUIRED',
+    ],
 ];
 // ---------------------------------------------------------------------------------------
 
@@ -38,3 +41,5 @@ $config = ORMSetup::createAttributeMetadataConfiguration(
 
 $connection    = DriverManager::getConnection($connectionParams, $config);
 $entityManager = new EntityManager($connection, $config);
+
+return $entityManager;
