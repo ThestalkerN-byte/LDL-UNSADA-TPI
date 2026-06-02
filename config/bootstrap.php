@@ -25,7 +25,7 @@ $connectionParams = [
     'port'     => 3306,
     'dbname'   => 'credenciales_db',
     'user'     => 'root',       // TODO: reemplazar con el usuario real
-    'password' => '',           // TODO: reemplazar con la contraseña real
+    'password' => 'root',      // TODO: reemplazar con la contraseña real
     'charset'  => 'utf8mb4',
 ];
 // ---------------------------------------------------------------------------------------

@@ -12,8 +12,9 @@
         }
     ],
     "require": {
-        "doctrine/orm": "^3.6",
-        "symfony/console": "^8.1",
-        "symfony/http-foundation": "^8.1"
+        "doctrine/orm": "^3.5",
+        "symfony/console": "^7.3",
+        "symfony/http-foundation": "^7.3",
+        "symfony/cache": "^7.4"
     }
 }
