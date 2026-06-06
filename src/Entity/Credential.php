@@ -32,6 +32,9 @@ class Credential {
     #[ORM\Column(type: "json", nullable: true)]
     private ?array $sellos = null;
 
+    #[ORM\Column(name: "es_activa", type: "boolean", options: ["default" => 1])]
+    private bool $esActiva = true;
+
     // --- Getters y Setters ---
 
     public function getId(): int {
@@ -68,6 +71,14 @@ class Credential {
 
     public function setSellos(?array $sellos): void {
         $this->sellos = $sellos;
+    }
+
+    public function isEsActiva(): bool {
+        return $this->esActiva;
+    }
+
+    public function setEsActiva(bool $esActiva): void {
+        $this->esActiva = $esActiva;
     }
 
     /**
