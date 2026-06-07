@@ -1,0 +1,2969 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "ICB - Credenciales Digitales",
+        "description": "API REST del sistema de Credenciales Digitales de la Iglesia Cristiana Bíblica.\n\n**Autenticación**: La API usa JWT (JSON Web Tokens) para autenticación stateless.\n- `POST /api/auth/login` → obtiene access_token (15 min) + refresh_token (30 días)\n- El access_token se envía como `Authorization: Bearer {token}`\n- El refresh_token implementa rotación: cada uso invalida el anterior\n\n**Roles**:\n- **Usuario**: puede ver su perfil, credencial, y crear consultas\n- **Admin**: acceso completo a todos los endpoints de administración\n\n**Formato de respuesta**:\n- Éxito: `{ \"data\": {...} | [...], \"message\": \"...\" }`\n- Error: `{ \"error\": \"...\", \"code\": 400|401|403|404|500 }`\n- Listas: `{ \"data\": [...], \"total\": int }`",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/icb",
+            "description": "Servidor Apache (producción)"
+        },
+        {
+            "url": "http://localhost:8000",
+            "description": "Servidor de desarrollo local"
+        }
+    ],
+    "paths": {
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health check del servidor",
+                "description": "Verifica que el servidor y la base de datos estén operativos. Útil para monitoreo y balanceadores de carga.",
+                "operationId": "a55989d9d4a42785a04afb188990b7e5",
+                "responses": {
+                    "200": {
+                        "description": "Servidor operativo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "ok"
+                                        },
+                                        "database": {
+                                            "type": "string",
+                                            "example": "connected",
+                                            "enum": [
+                                                "connected",
+                                                "disconnected"
+                                            ]
+                                        },
+                                        "timestamp": {
+                                            "type": "string",
+                                            "format": "date-time",
+                                            "example": "2026-06-03T15:00:00+00:00"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Iniciar sesión",
+                "description": "Autentica un usuario con usuario/DNI y contraseña. Devuelve access_token (JWT, 15 min) y refresh_token (30 días, con rotación).",
+                "operationId": "efdfb1d817fbe1fe77865868d6b8e7e2",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "usuario": {
+                                        "description": "Nombre de usuario (alternativo a DNI)",
+                                        "type": "string",
+                                        "example": "admin"
+                                    },
+                                    "dni": {
+                                        "description": "DNI del usuario (alternativo a usuario)",
+                                        "type": "string",
+                                        "example": "12345678"
+                                    },
+                                    "password": {
+                                        "description": "Contraseña del usuario",
+                                        "type": "string",
+                                        "example": "admin123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Inicio de sesión exitoso",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AuthTokens"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Inicio de sesión exitoso"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Faltan credenciales",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Renovar tokens",
+                "description": "Renueva el access_token usando un refresh_token válido. Implementa rotación: el token anterior se invalida y se genera uno nuevo.",
+                "operationId": "0781bbe39a22b735db953f1cb490fbe5",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "refresh_token": {
+                                        "description": "Refresh token obtenido del login",
+                                        "type": "string",
+                                        "example": "a1b2c3d4..."
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens renovados exitosamente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AuthTokens"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Tokens renovados exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token inválido o expirado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/recuperar-solicitar": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Solicitar recuperación de contraseña",
+                "description": "Inicia el proceso de recuperación. Genera un token de un solo uso (64 hex chars, expira en 60 min) y lo devuelve en la respuesta para desarrollo. En producción se enviaría por email.",
+                "operationId": "01c7da509553058c8215d025a97d5b6b",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "email": {
+                                        "description": "Email del usuario registrado",
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "admin@icb.com"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Solicitud procesada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "mensaje": {
+                                                    "type": "string",
+                                                    "example": "Si el email está registrado, recibirás instrucciones"
+                                                },
+                                                "token": {
+                                                    "description": "Token de recuperación (solo en desarrollo)",
+                                                    "type": "string",
+                                                    "example": "a1b2c3d4..."
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Solicitud de recuperación procesada"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Email inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/recuperar-confirmar": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Confirmar recuperación de contraseña",
+                "description": "Valida el token de recuperación y cambia la contraseña. El token es de un solo uso y expira a los 60 minutos.",
+                "operationId": "5615381c0532bdbe9f2ff94b95213644",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "token": {
+                                        "description": "Token de recuperación recibido",
+                                        "type": "string",
+                                        "example": "a1b2c3d4..."
+                                    },
+                                    "password": {
+                                        "description": "Nueva contraseña (mínimo 6 caracteres)",
+                                        "type": "string",
+                                        "example": "nuevaPass123",
+                                        "minLength": 6
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Contraseña actualizada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Contraseña actualizada exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Token inválido/expirado o password débil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "tags": [
+                    "Usuario"
+                ],
+                "summary": "Obtener usuario actual",
+                "description": "Devuelve los datos del usuario autenticado. No incluye datos sensibles (password_hash, tokens).",
+                "operationId": "be98e40d80d039da27124cc18cdf71c0",
+                "responses": {
+                    "200": {
+                        "description": "Datos del usuario",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Usuario"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido o inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/auth/mi-credencial": {
+            "get": {
+                "tags": [
+                    "Usuario"
+                ],
+                "summary": "Mi credencial activa",
+                "description": "Devuelve la credencial activa del usuario autenticado. Retorna null si el usuario no tiene una credencial activa (sin fecha de baja).",
+                "operationId": "9baf6d9a0c79f5a0967193f51adba887",
+                "responses": {
+                    "200": {
+                        "description": "Credencial activa o null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "anyOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/Credencial"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
+                                            ]
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido o inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/sellos": {
+            "get": {
+                "tags": [
+                    "Sellos"
+                ],
+                "summary": "Listar sellos activos",
+                "description": "Endpoint público que devuelve los sellos institucionales activos. Se usa para mostrar los sellos en las credenciales digitales publicadas.",
+                "operationId": "4f45d5851d7be4b4d268d24186336b09",
+                "responses": {
+                    "200": {
+                        "description": "Lista de sellos activos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Sello"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/conversaciones": {
+            "get": {
+                "tags": [
+                    "Conversaciones"
+                ],
+                "summary": "Listar mis conversaciones",
+                "description": "Lista las conversaciones del usuario autenticado. Incluye el último mensaje y el total de mensajes por conversación.",
+                "operationId": "ec006bc0cc61bde7d7ab3881d15b3063",
+                "responses": {
+                    "200": {
+                        "description": "Lista de conversaciones del usuario",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Conversacion"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Conversaciones"
+                ],
+                "summary": "Crear conversación",
+                "description": "Crea una nueva conversación con el primer mensaje. No existen conversaciones vacías: el contenido es obligatorio.",
+                "operationId": "c58575b3c7c5062834d0f8613451e767",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "contenido": {
+                                        "description": "Primer mensaje de la consulta",
+                                        "type": "string",
+                                        "example": "Hola, necesito información sobre mi credencial"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Conversación creada. Devuelve la lista actualizada de conversaciones.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Conversacion"
+                                            }
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Consulta creada exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Contenido requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/conversaciones/{id}/mensajes": {
+            "get": {
+                "tags": [
+                    "Conversaciones"
+                ],
+                "summary": "Ver mensajes de una conversación",
+                "description": "Obtiene los mensajes de una conversación. Verifica que el usuario autenticado sea el dueño de la conversación.",
+                "operationId": "06f67de4d3379d0b014bedb4008a3639",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la conversación",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Mensajes de la conversación",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Mensaje"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Conversación no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Conversaciones"
+                ],
+                "summary": "Enviar mensaje en conversación",
+                "description": "Agrega un mensaje a una conversación existente. La conversación debe estar abierta (no cerrada).",
+                "operationId": "ac80f6c93fb957f9de63a0600d0a4e1c",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la conversación",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "contenido": {
+                                        "description": "Contenido del mensaje",
+                                        "type": "string",
+                                        "example": "Gracias por la respuesta"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Mensaje enviado. Devuelve la lista actualizada de mensajes.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Mensaje"
+                                            }
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Mensaje enviado"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Conversación cerrada o ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/usuarios": {
+            "get": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Listar usuarios",
+                "description": "Lista todos los usuarios del sistema con filtros opcionales de búsqueda y estado.",
+                "operationId": "7adfc06aca2b35c3b290c61e463ef55e",
+                "parameters": [
+                    {
+                        "name": "busqueda",
+                        "in": "query",
+                        "description": "Búsqueda textual parcial (DNI, apellido, función)",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "estado",
+                        "in": "query",
+                        "description": "Filtrar por estado",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "Activo",
+                                "Inactivo"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de usuarios",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Usuario"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Crear usuario",
+                "description": "Crea un nuevo usuario en el sistema. La contraseña se hashea con bcrypt (costo 12). Queda registrado en el historial de cambios.",
+                "operationId": "4e1942a39766e886fbaf80ce25d06504",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "dni": {
+                                        "description": "DNI (único)",
+                                        "type": "string",
+                                        "example": "87654321",
+                                        "maxLength": 20
+                                    },
+                                    "usuario": {
+                                        "description": "Nombre de usuario (único)",
+                                        "type": "string",
+                                        "example": "jperez",
+                                        "maxLength": 50
+                                    },
+                                    "password": {
+                                        "description": "Contraseña (mínimo 6 caracteres)",
+                                        "type": "string",
+                                        "example": "pass123",
+                                        "minLength": 6
+                                    },
+                                    "nombre": {
+                                        "description": "Nombre",
+                                        "type": "string",
+                                        "example": "Juan",
+                                        "maxLength": 100
+                                    },
+                                    "apellido": {
+                                        "description": "Apellido",
+                                        "type": "string",
+                                        "example": "Pérez",
+                                        "maxLength": 100
+                                    },
+                                    "email": {
+                                        "description": "Email (único)",
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "jperez@icb.com",
+                                        "maxLength": 100
+                                    },
+                                    "telefono": {
+                                        "description": "Teléfono (opcional)",
+                                        "type": "string",
+                                        "example": "1122334455",
+                                        "maxLength": 30
+                                    },
+                                    "direccion": {
+                                        "description": "Dirección (opcional)",
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "funcion": {
+                                        "description": "Cargo o función (opcional)",
+                                        "type": "string",
+                                        "example": "Diácono",
+                                        "maxLength": 100
+                                    },
+                                    "roles": {
+                                        "description": "Roles (default: [\"Usuario\"])",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "Usuario"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Usuario creado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Usuario"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Usuario creado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos o duplicados",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/usuarios/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Obtener usuario por ID",
+                "description": "GET /api/admin/usuarios/{id}\n\nObtiene los datos de un usuario específico por su ID.",
+                "operationId": "2a3cf843ed9f6625af66440d6e7bffcf",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del usuario",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Datos del usuario",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Usuario"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Actualizar usuario",
+                "description": "Actualiza datos de un usuario existente. Solo modifica los campos presentes en el body (parcial). Queda registrado en el historial.",
+                "operationId": "aab275e004a822523d847904e6a55802",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "dni": {
+                                        "type": "string",
+                                        "maxLength": 20
+                                    },
+                                    "usuario": {
+                                        "type": "string",
+                                        "maxLength": 50
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "minLength": 6
+                                    },
+                                    "nombre": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "apellido": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "maxLength": 100
+                                    },
+                                    "telefono": {
+                                        "type": "string",
+                                        "maxLength": 30
+                                    },
+                                    "direccion": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "funcion": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "roles": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Usuario actualizado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Usuario"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Usuario actualizado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Eliminar usuario (baja lógica)",
+                "description": "Da de baja un usuario de forma lógica: cambia su estado a \"Inactivo\". NO elimina el registro. Queda registrado en el historial.",
+                "operationId": "d752f50019646a20dd642c3137ca042d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Usuario dado de baja",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Usuario dado de baja exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Ya está inactivo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/usuarios/{id}/restaurar": {
+            "post": {
+                "tags": [
+                    "Admin Usuarios"
+                ],
+                "summary": "Restaurar usuario",
+                "description": "Reactiva un usuario que estaba inactivo. Inverso del DELETE lógico. Queda registrado en el historial.",
+                "operationId": "d2a126ad5f24db25fe103bddcbfc2c29",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Usuario restaurado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Usuario"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Usuario restaurado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/usuarios/{id}/historial": {
+            "get": {
+                "tags": [
+                    "Admin Historial"
+                ],
+                "summary": "Historial de cambios de un usuario",
+                "description": "Obtiene el historial de cambios específico de un usuario. Útil para auditar qué cambios se hicieron y quién los hizo.",
+                "operationId": "53f8993e579e78c61a9ee67d0cb80044",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del usuario",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "tabla",
+                        "in": "query",
+                        "description": "Filtrar por tabla afectada",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "accion",
+                        "in": "query",
+                        "description": "Filtrar por tipo de acción",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CREAR",
+                                "EDITAR",
+                                "BAJA",
+                                "RESTAURAR",
+                                "RENOVAR"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "fecha_desde",
+                        "in": "query",
+                        "description": "Fecha inicio (Y-m-d)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "fecha_hasta",
+                        "in": "query",
+                        "description": "Fecha fin (Y-m-d)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Número de página",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Resultados por página",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Historial del usuario",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/HistorialEntry"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/credenciales": {
+            "get": {
+                "tags": [
+                    "Admin Credenciales"
+                ],
+                "summary": "Listar credenciales",
+                "description": "Lista todas las credenciales del sistema, opcionalmente filtradas por usuario. Ordenadas por fecha de emisión descendente.",
+                "operationId": "5aaf17e4d81f64947ca35540ec0780bb",
+                "parameters": [
+                    {
+                        "name": "usuario_id",
+                        "in": "query",
+                        "description": "Filtrar por usuario",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de credenciales",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Credencial"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Credenciales"
+                ],
+                "summary": "Emitir credencial",
+                "description": "Emite una nueva credencial digital para un usuario. Genera un código QR único de 32 caracteres hexadecimales. Queda registrado en el historial.",
+                "operationId": "9afb20fb042b59474c1c9744c3c04461",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "id_usuario": {
+                                        "description": "ID del usuario",
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "fecha_vencimiento": {
+                                        "description": "Fecha de vencimiento (debe ser futura)",
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2027-06-04"
+                                    },
+                                    "foto": {
+                                        "description": "URL de foto (opcional)",
+                                        "type": "string",
+                                        "format": "uri",
+                                        "example": "https://ejemplo.com/foto.jpg"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Credencial emitida",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Credencial"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial emitida exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/credenciales/{id}/renovar": {
+            "post": {
+                "tags": [
+                    "Admin Credenciales"
+                ],
+                "summary": "Renovar credencial",
+                "description": "Renueva una credencial: la anterior se desactiva (fecha de baja) y se crea una nueva con nuevo código QR. La nueva credencial mantiene el mismo usuario.",
+                "operationId": "ab7ccbe0bed20c58fa9c91bf15e0c483",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la credencial a renovar",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "fecha_vencimiento": {
+                                        "description": "Nueva fecha de vencimiento (default: +1 año)",
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2028-06-04"
+                                    },
+                                    "foto": {
+                                        "description": "Nueva foto (opcional, conserva anterior)",
+                                        "type": "string",
+                                        "format": "uri",
+                                        "example": "https://ejemplo.com/nueva-foto.jpg"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Credencial renovada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Credencial"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial renovada exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Credencial no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/sellos": {
+            "get": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Listar todos los sellos",
+                "description": "Lista TODOS los sellos (activos e inactivos). Diferencia con GET /api/sellos que solo devuelve los activos.",
+                "operationId": "7121f611c20f295840729f071922bbeb",
+                "responses": {
+                    "200": {
+                        "description": "Lista de sellos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Sello"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Crear sello",
+                "description": "Crea un nuevo sello institucional con URL de imagen.",
+                "operationId": "55193fe9e804c6d97bef5be4443f8ea9",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "nombre": {
+                                        "description": "Nombre del sello",
+                                        "type": "string",
+                                        "example": "Sello Oficial",
+                                        "maxLength": 100
+                                    },
+                                    "imagen_url": {
+                                        "description": "URL de la imagen",
+                                        "type": "string",
+                                        "format": "uri",
+                                        "example": "/images/sellos/ICB-A1B2C3D4.png",
+                                        "maxLength": 255
+                                    },
+                                    "activo": {
+                                        "description": "Activo (default: true)",
+                                        "type": "boolean",
+                                        "example": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sello creado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Sello"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sello creado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/sellos/{id}": {
+            "get": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Obtener sello por ID",
+                "description": "GET /api/admin/sellos/{id}\n\nObtiene los datos de un sello específico por su ID.",
+                "operationId": "ff11fd9d944229803ef9158f6babc7ed",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Datos del sello",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Sello"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Sello no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Actualizar sello",
+                "description": "Actualiza datos de un sello existente. Solo modifica los campos presentes (parcial).",
+                "operationId": "021cca80aad93397d37bdc98b36408c6",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "nombre": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "imagen_url": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "maxLength": 255
+                                    },
+                                    "activo": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sello actualizado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Sello"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sello actualizado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Sello no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Desactivar sello (baja lógica)",
+                "description": "Da de baja un sello de forma lógica: cambia activo a false. El registro NO se elimina de la base de datos. Consistente con el patrón de baja lógica de usuarios.",
+                "operationId": "04f6b2384d3917927b6a1f832ebd9cf2",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID del sello",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Sello desactivado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sello desactivado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "El sello ya está inactivo o ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Sello no encontrado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/sellos/upload": {
+            "post": {
+                "tags": [
+                    "Admin Sellos"
+                ],
+                "summary": "Subir imagen de sello",
+                "description": "Sube una imagen para un sello mediante formulario multipart. La imagen se guarda en el servidor con nombre único. Formatos: PNG, JPG, WEBP, SVG. Máximo 2MB.",
+                "operationId": "b2e04c4768ecaf61b70570c1ee1b0997",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "properties": {
+                                    "nombre": {
+                                        "description": "Nombre del sello",
+                                        "type": "string"
+                                    },
+                                    "imagen": {
+                                        "description": "Archivo de imagen (PNG, JPG, WEBP, SVG, máx 2MB)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "activo": {
+                                        "description": "true/false (opcional, default: true)",
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Sello creado con imagen",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Sello"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sello creado exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Archivo inválido o faltante",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/historial": {
+            "get": {
+                "tags": [
+                    "Admin Historial"
+                ],
+                "summary": "Historial global del sistema",
+                "description": "Auditoría completa del sistema con filtros opcionales. Permite rastrear todos los cambios realizados por administradores.",
+                "operationId": "139b25dfedde00085c1f19c9672e77e0",
+                "parameters": [
+                    {
+                        "name": "usuario_id",
+                        "in": "query",
+                        "description": "Filtrar por administrador que realizó el cambio",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "tabla",
+                        "in": "query",
+                        "description": "Filtrar por tabla afectada (usuarios, credenciales)",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "accion",
+                        "in": "query",
+                        "description": "Filtrar por tipo de acción",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "CREAR",
+                                "EDITAR",
+                                "BAJA",
+                                "RESTAURAR",
+                                "RENOVAR"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "fecha_desde",
+                        "in": "query",
+                        "description": "Fecha inicio (Y-m-d)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "fecha_hasta",
+                        "in": "query",
+                        "description": "Fecha fin (Y-m-d)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Número de página",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Resultados por página",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 50,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Historial del sistema",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/HistorialEntry"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/conversaciones": {
+            "get": {
+                "tags": [
+                    "Admin Conversaciones"
+                ],
+                "summary": "Bandeja de conversaciones (admin)",
+                "description": "Lista TODAS las conversaciones del sistema. Los usuarios solo ven las suyas; el admin ve todas. Opcionalmente filtra por estado.",
+                "operationId": "5fefed1908198da54352cbcb2e9b9529",
+                "parameters": [
+                    {
+                        "name": "estado",
+                        "in": "query",
+                        "description": "Filtrar por estado",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "Abierta",
+                                "Cerrada"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de todas las conversaciones",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Conversacion"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Se requiere rol Admin",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/conversaciones/{id}/mensajes": {
+            "get": {
+                "tags": [
+                    "Admin Conversaciones"
+                ],
+                "summary": "Ver mensajes de cualquier conversación (admin)",
+                "description": "Admin puede ver los mensajes de cualquier conversación sin restricción de ownership.",
+                "operationId": "9f64227ca12f39b4e468b37544e26c87",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la conversación",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Mensajes de la conversación",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Mensaje"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Conversación no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Admin Conversaciones"
+                ],
+                "summary": "Responder conversación (admin)",
+                "description": "Admin responde en una conversación. No hay restricción de ownership.",
+                "operationId": "380e512abae8b499a91bae8c4642fe1c",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la conversación",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "contenido": {
+                                        "description": "Respuesta del administrador",
+                                        "type": "string",
+                                        "example": "Claro, te ayudamos con eso. ¿Cuál es tu DNI?"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Respuesta enviada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Mensaje"
+                                            }
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Respuesta enviada"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Conversación cerrada o ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Conversación no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/admin/conversaciones/{id}/cerrar": {
+            "post": {
+                "tags": [
+                    "Admin Conversaciones"
+                ],
+                "summary": "Cerrar conversación (admin)",
+                "description": "Cierra una conversación. Una vez cerrada, no se pueden agregar más mensajes. Lanza error si ya está cerrada.",
+                "operationId": "a348e6f6c4ca34173b12210851352c17",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID de la conversación",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Conversación cerrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Conversación cerrada exitosamente"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Ya está cerrada o ID inválido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Conversación no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ErrorResponse": {
+                "description": "Respuesta de error estándar",
+                "properties": {
+                    "error": {
+                        "description": "Schema: ErrorResponse\n\nRespuesta de error estándar devuelta por todos los endpoints\ncuando ocurre una condición de error.",
+                        "type": "string",
+                        "example": "Mensaje descriptivo del error"
+                    },
+                    "code": {
+                        "type": "integer",
+                        "example": 400
+                    }
+                },
+                "type": "object"
+            },
+            "Usuario": {
+                "description": "Datos de un usuario del sistema",
+                "properties": {
+                    "id": {
+                        "description": "Schema: Usuario\n\nDatos completos de un usuario del sistema, incluyendo roles\ny estado. Se usa en respuestas de perfil y CRUD de admin.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "usuario": {
+                        "type": "string",
+                        "example": "admin",
+                        "maxLength": 50
+                    },
+                    "dni": {
+                        "type": "string",
+                        "example": "12345678",
+                        "maxLength": 20
+                    },
+                    "nombre": {
+                        "type": "string",
+                        "example": "Administrador",
+                        "maxLength": 100
+                    },
+                    "apellido": {
+                        "type": "string",
+                        "example": "Principal",
+                        "maxLength": 100
+                    },
+                    "email": {
+                        "type": "string",
+                        "example": "admin@icb.com",
+                        "maxLength": 100
+                    },
+                    "telefono": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": "000000000",
+                        "maxLength": 30
+                    },
+                    "direccion": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 255
+                    },
+                    "funcion": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": "Administrador General",
+                        "maxLength": 100
+                    },
+                    "estado": {
+                        "type": "string",
+                        "example": "Activo",
+                        "enum": [
+                            "Activo",
+                            "Inactivo"
+                        ]
+                    },
+                    "roles": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": [
+                            "Admin",
+                            "Usuario"
+                        ]
+                    },
+                    "fecha_alta": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-01 01:36:49"
+                    }
+                },
+                "type": "object"
+            },
+            "Credencial": {
+                "description": "Credencial digital de un miembro",
+                "properties": {
+                    "id": {
+                        "description": "Schema: Credencial\n\nCredencial digital emitida a un miembro de la iglesia,\ncon código QR único y fechas de emisión/vencimiento.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "id_usuario": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "usuario_nombre": {
+                        "type": "string",
+                        "example": "Administrador Principal"
+                    },
+                    "usuario_dni": {
+                        "type": "string",
+                        "example": "12345678"
+                    },
+                    "fecha_emision": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-06-03"
+                    },
+                    "fecha_vencimiento": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2027-06-03"
+                    },
+                    "foto": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": null
+                    },
+                    "codigo_qr": {
+                        "type": "string",
+                        "example": "ICB-A1B2C3D4E5F6789012345678ABCDEF01"
+                    },
+                    "activa": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "fecha_baja": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time",
+                        "example": null
+                    }
+                },
+                "type": "object"
+            },
+            "Sello": {
+                "description": "Sello institucional que aparece en las credenciales",
+                "properties": {
+                    "id": {
+                        "description": "Schema: Sello\n\nSello institucional que aparece en las credenciales digitales.\nLos sellos activos se exponen públicamente.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "nombre": {
+                        "type": "string",
+                        "example": "Sello Oficial",
+                        "maxLength": 100
+                    },
+                    "imagen_url": {
+                        "type": "string",
+                        "format": "uri",
+                        "example": "/images/sellos/ICB-A1B2C3D4E5F6.png"
+                    },
+                    "activo": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-03 15:00:00"
+                    }
+                },
+                "type": "object"
+            },
+            "Conversacion": {
+                "description": "Hilo de consulta entre un usuario y la administración",
+                "properties": {
+                    "id": {
+                        "description": "Schema: Conversacion\n\nHilo de consulta entre un usuario y la administración.\nIncluye metadatos como estado y último mensaje.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "usuario": {
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "nombre": {
+                                "type": "string",
+                                "example": "Administrador Principal"
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "estado": {
+                        "type": "string",
+                        "example": "Abierta",
+                        "enum": [
+                            "Abierta",
+                            "Cerrada"
+                        ]
+                    },
+                    "fecha_creacion": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-03 15:00:00"
+                    },
+                    "ultimo_mensaje": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": "Gracias por su ayuda"
+                    },
+                    "total_mensajes": {
+                        "type": "integer",
+                        "example": 3
+                    }
+                },
+                "type": "object"
+            },
+            "Mensaje": {
+                "description": "Mensaje individual dentro de una conversación",
+                "properties": {
+                    "id": {
+                        "description": "Schema: Mensaje\n\nMensaje individual dentro de una conversación, con su emisor\n(usuario o admin) y fecha de envío.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "contenido": {
+                        "type": "string",
+                        "example": "Hola, necesito información"
+                    },
+                    "emisor": {
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "nombre": {
+                                "type": "string",
+                                "example": "Administrador Principal"
+                            },
+                            "es_admin": {
+                                "type": "boolean",
+                                "example": true
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "fecha_envio": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-03 15:00:00"
+                    }
+                },
+                "type": "object"
+            },
+            "HistorialEntry": {
+                "description": "Registro de auditoría de cambios en el sistema",
+                "properties": {
+                    "id": {
+                        "description": "Schema: HistorialEntry\n\nRegistro de auditoría que captura cambios en el sistema:\nquién hizo el cambio, qué cambió, valor anterior y nuevo.",
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "admin": {
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "example": 1
+                            },
+                            "nombre": {
+                                "type": "string",
+                                "example": "Administrador Principal"
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "tabla": {
+                        "type": "string",
+                        "example": "usuarios"
+                    },
+                    "registro_id": {
+                        "type": "integer",
+                        "example": 3
+                    },
+                    "accion": {
+                        "type": "string",
+                        "example": "CREAR",
+                        "enum": [
+                            "CREAR",
+                            "EDITAR",
+                            "BAJA",
+                            "RESTAURAR",
+                            "RENOVAR"
+                        ]
+                    },
+                    "valor_anterior": {
+                        "description": "Snapshot JSON del estado anterior",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "valor_nuevo": {
+                        "description": "Snapshot JSON del nuevo estado",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "fecha": {
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-06-03 15:22:21"
+                    }
+                },
+                "type": "object"
+            },
+            "AuthTokens": {
+                "description": "Tokens de autenticación",
+                "properties": {
+                    "access_token": {
+                        "description": "JWT de acceso (15 min)",
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "description": "Token de refresco con rotación (30 días)",
+                        "type": "string"
+                    },
+                    "expires_in": {
+                        "description": "Tiempo de vida del access_token en segundos",
+                        "type": "integer",
+                        "example": 900
+                    },
+                    "usuario": {
+                        "$ref": "#/components/schemas/Usuario"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "description": "Access token JWT obtenido de POST /api/auth/login",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Health",
+            "description": "Monitoreo del servidor"
+        },
+        {
+            "name": "Auth",
+            "description": "Autenticación y recuperación de contraseña"
+        },
+        {
+            "name": "Usuario",
+            "description": "Datos del usuario autenticado"
+        },
+        {
+            "name": "Sellos",
+            "description": "Sellos institucionales (público)"
+        },
+        {
+            "name": "Conversaciones",
+            "description": "Consultas de usuarios"
+        },
+        {
+            "name": "Admin Usuarios",
+            "description": "CRUD de usuarios"
+        },
+        {
+            "name": "Admin Credenciales",
+            "description": "Emisión y renovación de credenciales"
+        },
+        {
+            "name": "Admin Sellos",
+            "description": "CRUD de sellos institucionales"
+        },
+        {
+            "name": "Admin Conversaciones",
+            "description": "Bandeja de administración de consultas"
+        },
+        {
+            "name": "Admin Historial",
+            "description": "Auditoría de cambios del sistema"
+        }
+    ]
+}

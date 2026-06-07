@@ -1,0 +1,33 @@
+# Apache rewrite rules — Front Controller Pattern
+# ================================================
+#
+# Redirige todas las peticiones HTTP a public/index.php EXCEPTO
+# cuando el archivo o directorio solicitado existe físicamente
+# (imágenes, CSS, JS, etc.).
+#
+# Esto permite tener URLs limpias estilo REST:
+#   /api/usuarios  →  public/index.php
+#   /api/auth/login → public/index.php
+#
+# Requisito: mod_rewrite habilitado en Apache.
+
+RewriteEngine On
+
+# ─── Bloquear acceso a archivos sensibles ───────────────────────────────
+# .env contiene credenciales de DB, JWT secret, etc.
+RewriteRule ^\.env - [F,L]
+# composer.json y composer.lock revelan versiones exactas de dependencias
+RewriteRule ^composer\.(json|lock)$ - [F,L]
+# openapi.json expone el contrato completo de la API
+RewriteRule ^openapi\.json$ - [F,L]
+
+# ─── Front Controller ───────────────────────────────────────────────────
+# No redirigir si el archivo existe (ej: /foto.jpg, /estilos.css)
+RewriteCond %{REQUEST_FILENAME} !-f
+
+# No redirigir si el directorio existe (ej: /uploads/)
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# QSA = Query String Append (conserva parámetros ?foo=bar)
+# L   = Last (detiene el procesamiento de reglas)
+RewriteRule ^(.*)$ index.php [QSA,L]
