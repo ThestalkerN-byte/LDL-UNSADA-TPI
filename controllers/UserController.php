@@ -2,107 +2,87 @@
 require_once __DIR__ . "/../models/User.php";
 
 class UserController {
-    private $user;
+    private $entityManager;
 
-    public function __construct() {
-        $this->user = new User();
+    // Doctrine requiere recibir el EntityManager (el administrador de la BD)
+    public function __construct($entityManager) {
+        $this->entityManager = $entityManager;
     }
 
     public function handleRequest() {
-        // Aseguramos que la respuesta para el frontend sea siempre JSON
         header('Content-Type: application/json; charset=utf-8');
-
-        // Sanitización de la orden
+        
         $op = filter_input(INPUT_GET, 'op', FILTER_DEFAULT) ?? "ver";
-        $op = htmlspecialchars($op, ENT_QUOTES, 'UTF-8');
         $method = $_SERVER['REQUEST_METHOD'];
 
         switch ($op) {
-            case "ver":
-                $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-                if (!$id) {
-                    http_response_code(400);
-                    echo json_encode(["status" => "error", "message" => "ID inválido."]);
-                    break;
-                }
-                echo json_encode(["status" => "ok", "data" => $this->user->getById($id)]);
-                break;
-
-            case "buscar":
-                // Limpieza del buscador para el frontend
-                $termino = filter_input(INPUT_GET, 'termino', FILTER_DEFAULT) ?? '';
-                $termino = htmlspecialchars(trim($termino), ENT_QUOTES, 'UTF-8');
-                $soloActivos = isset($_GET["todos"]) ? false : true; 
-                
-                $resultados = $this->user->search($termino, $soloActivos);
-                echo json_encode(["status" => "ok", "data" => $resultados]);
-                break;
-
-            case "crear":
+            case "alta":
                 if ($method !== 'POST') {
-                    http_response_code(405);
-                    echo json_encode(["status" => "error", "message" => "Use POST para registrar."]);
-                    break;
+                    echo json_encode(["status" => "error", "message" => "Método no permitido."]);
+                    return;
                 }
 
-                $datos = [
-                    "dni"      => htmlspecialchars(trim($_POST["dni"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "usuario"  => htmlspecialchars(trim($_POST["usuario"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "password" => $_POST["password"] ?? null,
-                    "nombre"   => htmlspecialchars(trim($_POST["nombre"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "apellido" => htmlspecialchars(trim($_POST["apellido"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "rol"      => htmlspecialchars(trim($_POST["rol"] ?? 'Usuario'), ENT_QUOTES, 'UTF-8')
-                ];
+                // Capturamos los datos del POST
+                $dni = $_POST['dni'] ?? '';
+                $usuarioInput = $_POST['usuario'] ?? '';
+                $password = $_POST['password'] ?? '';
+                $nombre = $_POST['nombre'] ?? '';
+                $apellido = $_POST['apellido'] ?? '';
+                $rol = $_POST['rol'] ?? 'Usuario';
 
-                if ($this->user->existsByDni($datos["dni"])) {
-                    http_response_code(409); // Conflict
+                // VALIDACIÓN: ¿El DNI ya existe? (Doctrine lo busca con findOneBy)
+                $userRepository = $this->entityManager->getRepository(User::class);
+                $usuarioExistente = $userRepository->findOneBy(['dni' => $dni]);
+
+                if ($usuarioExistente) {
                     echo json_encode(["status" => "error", "message" => "El DNI ya está registrado."]);
-                    break;
+                    return;
                 }
 
-                if ($this->user->create($datos)) {
-                    http_response_code(201); // Created
-                    echo json_encode(["status" => "ok", "message" => "Usuario registrado."]);
-                }
+                // CREACIÓN: Instanciamos la entidad y usamos los setters
+                $nuevoUsuario = new User();
+                $nuevoUsuario->setDni($dni);
+                $nuevoUsuario->setUsuario($usuarioInput);
+                $nuevoUsuario->setPassword(password_hash($password, PASSWORD_BCRYPT));
+                $nuevoUsuario->setNombre($nombre);
+                $nuevoUsuario->setApellido($apellido);
+                $nuevoUsuario->setRol($rol);
+                $nuevoUsuario->setEstado('Activo');
+
+                // GUARDADO: Le avisamos a Doctrine que lo persista e impacte en la BD
+                $this->entityManager->persist($nuevoUsuario);
+                $this->entityManager->flush();
+
+                echo json_encode(["status" => "ok", "message" => "Usuario registrado."]);
                 break;
 
-            case "editar":
+            case "baja":
                 if ($method !== 'POST') {
-                    http_response_code(405);
-                    echo json_encode(["status" => "error", "message" => "Use POST para actualizar."]);
-                    break;
+                    echo json_encode(["status" => "error", "message" => "Método no permitido."]);
+                    return;
                 }
 
-                $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-                $datos = [
-                    "nombre"   => htmlspecialchars(trim($_POST["nombre"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "apellido" => htmlspecialchars(trim($_POST["apellido"] ?? ''), ENT_QUOTES, 'UTF-8'),
-                    "rol"      => htmlspecialchars(trim($_POST["rol"] ?? 'Usuario'), ENT_QUOTES, 'UTF-8')
-                ];
+                $dni = $_POST['dni'] ?? '';
 
-                if ($this->user->update($id, $datos)) {
-                    echo json_encode(["status" => "ok", "message" => "Perfil actualizado."]);
-                }
-                break;
+                // Buscamos al usuario por DNI
+                $userRepository = $this->entityManager->getRepository(User::class);
+                $usuario = $userRepository->findOneBy(['dni' => $dni]);
 
-            case "eliminar":
-                if ($method !== 'POST') {
-                    http_response_code(405);
-                    echo json_encode(["status" => "error", "message" => "Use POST para la baja."]);
-                    break;
+                if (!$usuario) {
+                    echo json_encode(["status" => "error", "message" => "Usuario no encontrado."]);
+                    return;
                 }
 
-                $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-                if ($this->user->softDelete($id)) {
-                    echo json_encode(["status" => "ok", "message" => "Usuario inactivo."]);
-                }
+                // BORRADO LÓGICO: Cambiamos el estado a Inactivo y flush
+                $usuario->setEstado('Inactivo');
+                $this->entityManager->flush();
+
+                echo json_encode(["status" => "ok", "message" => "Usuario dado de baja correctamente."]);
                 break;
 
             default:
-                http_response_code(400);
-                echo json_encode(["status" => "error", "message" => "Acción inválida."]);
+                echo json_encode(["status" => "error", "message" => "Operación no válida."]);
                 break;
         }
     }
 }
-?>

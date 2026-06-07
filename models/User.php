@@ -1,82 +1,59 @@
 <?php
 require_once __DIR__ . "/../config/Database.php";
 
+use Doctrine\ORM\Mapping as ORM;
+
+#[ORM\Entity]
+#[ORM\Table(name: "usuarios")]
 class User {
-    private $db;
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(type: "integer")]
+    private ?int $id_usuario = null;
 
-    public function __construct() {
-        // Usa la conexión que armó el equipo de Infraestructura
-        $this->db = new Database();
-    }
+    #[ORM\Column(type: "string", length: 20, unique: true)]
+    private string $dni;
 
-    // Usado para el Login (solo acá se consulta el password)
-    public function login($identificador) {
-        $sql = "SELECT id_usuario, usuario, password, rol, estado FROM usuarios 
-                WHERE (usuario = :usuario OR dni = :dni) LIMIT 1";
-        return $this->db->query($sql, [
-            ":usuario" => $identificador,
-            ":dni" => $identificador
-        ])->fetch(PDO::FETCH_ASSOC);
-    }
+    #[ORM\Column(type: "string", length: 50)]
+    private string $usuario;
 
-    // Ver un usuario por ID (Sin exponer la clave)
-    public function getById($id) {
-        $sql = "SELECT id_usuario, dni, usuario, nombre, apellido, rol, estado FROM usuarios WHERE id_usuario = :id";
-        return $this->db->query($sql, [":id" => $id])->fetch(PDO::FETCH_ASSOC);
-    }
+    #[ORM\Column(type: "string", length: 255)]
+    private string $password;
 
-    // Validación para evitar DNI duplicados
-    public function existsByDni($dni) {
-        $sql = "SELECT COUNT(*) as total FROM usuarios WHERE dni = :dni";
-        $result = $this->db->query($sql, [":dni" => $dni])->fetch(PDO::FETCH_ASSOC);
-        return $result['total'] > 0;
-    }
+    #[ORM\Column(type: "string", length: 50)]
+    private string $nombre;
 
-    // RF08: Crear usuario (El admin asigna los datos)
-    public function create($datos) {
-        $sql = "INSERT INTO usuarios (dni, usuario, password, nombre, apellido, rol, estado) 
-                VALUES (:dni, :usuario, :password, :nombre, :apellido, :rol, 'Activo')";
-        return $this->db->query($sql, [
-            ":dni"      => $datos['dni'],
-            ":usuario"  => $datos['usuario'],
-            ":password" => $datos['password'], 
-            ":nombre"   => $datos['nombre'],
-            ":apellido" => $datos['apellido'],
-            ":rol"      => $datos['rol']
-        ]);
-    }
+    #[ORM\Column(type: "string", length: 50)]
+    private string $apellido;
 
-    // RF08: Editar Perfil
-    public function update($id, $datos) {
-        $sql = "UPDATE usuarios 
-                SET nombre = :nombre, apellido = :apellido, rol = :rol 
-                WHERE id_usuario = :id";
-        return $this->db->query($sql, [
-            ":nombre"   => $datos['nombre'],
-            ":apellido" => $datos['apellido'],
-            ":rol"      => $datos['rol'],
-            ":id"       => $id
-        ]);
-    }
+    #[ORM\Column(type: "string", length: 20)]
+    private string $rol;
 
-    // CU3: Borrado Lógico
-    public function softDelete($id) {
-        $sql = "UPDATE usuarios SET estado = 'Inactivo' WHERE id_usuario = :id";
-        return $this->db->query($sql, [":id" => $id]);
-    }
+    #[ORM\Column(type: "string", length: 20)]
+    private string $estado;
 
-    // RF10: Buscador Seguro (Para que el frontend arme la tabla)
-    public function search($termino, $soloActivos = true) {
-        $sql = "SELECT id_usuario, dni, usuario, nombre, apellido, rol, estado 
-                FROM usuarios 
-                WHERE (dni LIKE :t OR apellido LIKE :t OR rol LIKE :t)";
-        
-        if ($soloActivos) {
-            $sql .= " AND estado = 'Activo'";
-        }
-        
-        $params = [":t" => "%" . $termino . "%"];
-        return $this->db->query($sql, $params)->fetchAll(PDO::FETCH_ASSOC);
-    }
+    // --- GETTERS Y SETTERS ---
+
+    public function getIdUsuario(): ?int { return $this->id_usuario; }
+
+    public function getDni(): string { return $this->dni; }
+    public function setDni(string $dni): void { $this->dni = $dni; }
+
+    public function getUsuario(): string { return $this->usuario; }
+    public function setUsuario(string $usuario): void { $this->usuario = $usuario; }
+
+    public function getPassword(): string { return $this->password; }
+    public function setPassword(string $password): void { $this->password = $password; }
+
+    public function getNombre(): string { return $this->nombre; }
+    public function setNombre(string $nombre): void { $this->nombre = $nombre; }
+
+    public function getApellido(): string { return $this->apellido; }
+    public function setApellido(string $apellido): void { $this->apellido = $apellido; return; }
+
+    public function getRol(): string { return $this->rol; }
+    public function setRol(string $rol): void { $this->rol = $rol; }
+
+    public function getEstado(): string { return $this->estado; }
+    public function setEstado(string $estado): void { $this->estado = $estado; }
 }
-?>
