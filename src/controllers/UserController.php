@@ -1,74 +1,124 @@
 <?php
 namespace App\Controller;
 
+use App\Entity\User;
 use App\Repository\UserRepository;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
+use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * Controlador REST para gestión de usuarios.
  * Solo accesible por administradores.
  */
 class UserController {
+    private EntityManagerInterface $em;
     private UserRepository $userRepository;
 
-    public function __construct(UserRepository $userRepository) {
-        $this->userRepository = $userRepository;
+    public function __construct(EntityManagerInterface $em) {
+        $this->em = $em;
+        $this->userRepository = $em->getRepository(User::class);
     }
 
-    /**
-     * GET /users
-     * Devuelve todos los usuarios.
-     */
-    public function index(): JsonResponse {
-        $usuarios = $this->userRepository->findAll();
-        return new JsonResponse($usuarios);
+    public function handleRequest(): void {
+        $method = $_SERVER['REQUEST_METHOD'];
+        $id     = isset($_GET['id']) ? (int)$_GET['id'] : null;
+
+        match ($method) {
+            'GET'    => $id ? $this->show($id) : $this->index(),
+            'POST'   => $this->create(),
+            'PUT'    => $id ? $this->update($id) : $this->responder(400, 'error', 'Se requiere un ID para actualizar.'),
+            'DELETE' => $id ? $this->delete($id) : $this->responder(400, 'error', 'Se requiere un ID para eliminar.'),
+            default  => $this->responder(405, 'error', 'Método HTTP no permitido.'),
+        };
     }
 
-    /**
-     * GET /users/{id}
-     * Devuelve un usuario por ID.
-     */
-    public function show(int $id): JsonResponse {
+    private function index(): void {
+        $usuarios = $this->userRepository->findBy(['estado' => true]);
+        $data = array_map(fn(User $u) => $this->serializeUser($u), $usuarios);
+        $this->responder(200, 'success', 'Usuarios listados.', $data);
+    }
+
+    private function show(int $id): void {
         $usuario = $this->userRepository->find($id);
-        if (!$usuario) {
-            return new JsonResponse(['error' => 'Usuario no encontrado'], 404);
+        if (!$usuario || !$usuario->isEstado() === false) {
+            $this->responder(404, 'error', 'Usuario no encontrado.');
+            return;
         }
-        return new JsonResponse($usuario);
+        $this->responder(200, 'success', 'Usuario encontrado.', $this->serializeUser($usuario));
     }
 
-    /**
-     * POST /users
-     * Crea un nuevo usuario.
-     */
-    public function create(Request $request): JsonResponse {
-        $data = json_decode($request->getContent(), true);
-        $usuario = $this->userRepository->create($data);
-        return new JsonResponse(['message' => 'Usuario creado', 'usuario' => $usuario], 201);
+    private function create(): void {
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (empty($data['usuario']) || empty($data['password']) || empty($data['nombre']) || empty($data['apellido']) || empty($data['dni']) || empty($data['email']) || empty($data['rol'])) {
+            $this->responder(400, 'error', 'Faltan campos obligatorios.');
+            return;
+        }
+
+        $usuario = new User();
+        $usuario->setUsuario($data['usuario']);
+        $usuario->setPassword(password_hash($data['password'], PASSWORD_DEFAULT));
+        $usuario->setNombre($data['nombre']);
+        $usuario->setApellido($data['apellido']);
+        $usuario->setDni($data['dni']);
+        $usuario->setEmail($data['email']);
+        $usuario->setRol($data['rol']);
+        $usuario->setEstado(true);
+
+        $this->em->persist($usuario);
+        $this->em->flush();
+
+        $this->responder(201, 'success', 'Usuario creado.', $this->serializeUser($usuario));
     }
 
-    /**
-     * PUT /users/{id}
-     * Actualiza un usuario existente.
-     */
-    public function update(Request $request, int $id): JsonResponse {
-        $data = json_decode($request->getContent(), true);
-        $usuario = $this->userRepository->update($id, $data);
-        if (!$usuario) {
-            return new JsonResponse(['error' => 'Usuario no encontrado'], 404);
+    private function update(int $id): void {
+        $usuario = $this->userRepository->find($id);
+        if (!$usuario || !$usuario->isEstado() === false) {
+            $this->responder(404, 'error', 'Usuario no encontrado.');
+            return;
         }
-        return new JsonResponse(['message' => 'Usuario actualizado', 'usuario' => $usuario]);
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!empty($data['nombre'])) $usuario->setNombre($data['nombre']);
+        if (!empty($data['apellido'])) $usuario->setApellido($data['apellido']);
+        if (!empty($data['email'])) $usuario->setEmail($data['email']);
+        if (!empty($data['rol'])) $usuario->setRol($data['rol']);
+        if (!empty($data['password'])) $usuario->setPassword(password_hash($data['password'], PASSWORD_DEFAULT));
+
+        $this->em->flush();
+        $this->responder(200, 'success', 'Usuario actualizado.', $this->serializeUser($usuario));
     }
 
-    /**
-     * DELETE /users/{id}
-     * Elimina un usuario.
-     */
-    public function delete(int $id): JsonResponse {
-        $resultado = $this->userRepository->delete($id);
-        if (!$resultado) {
-            return new JsonResponse(['error' => 'Usuario no encontrado'], 404);
+    private function delete(int $id): void {
+        $usuario = $this->userRepository->find($id);
+        if (!$usuario || !$usuario->isEstado() === false) {
+            $this->responder(404, 'error', 'Usuario no encontrado.');
+            return;
         }
-        return new JsonResponse(['message' => 'Usuario eliminado']);
+
+        $usuario->setEstado(false);
+        $this->em->flush();
+
+        $this->responder(200, 'success', 'Usuario eliminado lógicamente.');
+    }
+
+    private function serializeUser(User $usuario): array {
+        return [
+            'id' => $usuario->getId(),
+            'usuario' => $usuario->getUsuario(),
+            'nombre' => $usuario->getNombre(),
+            'apellido' => $usuario->getApellido(),
+            'dni' => $usuario->getDni(),
+            'email' => $usuario->getEmail(),
+            'rol' => $usuario->getRol(),
+            'estado' => $usuario->isEstado()
+        ];
+    }
+
+    private function responder(int $httpCode, string $status, string $message, array $data = []): void {
+        http_response_code($httpCode);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status' => $status, 'message' => $message, 'data' => $data], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }

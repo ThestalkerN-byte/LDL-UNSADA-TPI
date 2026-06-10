@@ -20,7 +20,7 @@ class AuthService {
         if (!$user) {
             return ['error' => 'Usuario no encontrado'];
         }
-        if ($user->getPassword() !== $password) {
+        if (!password_verify($password, $user->getPassword())) {
             return ['error' => 'Contraseña incorrecta'];
         }
         return ['status' => 'ok', 'message' => 'Login exitoso'];

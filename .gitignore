@@ -1,1 +1,8 @@
 /vendor/
+.env
+
+# Scripts locales de desarrollo y prueba
+test_db.php
+create_db.php
+setup_db.php
+seed.php

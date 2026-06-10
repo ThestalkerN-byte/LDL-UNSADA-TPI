@@ -18,18 +18,19 @@ use Doctrine\ORM\ORMSetup;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// Cargar variables de entorno desde el archivo .env
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/../');
+$dotenv->safeLoad();
+
 // --- PARÁMETROS DE CONEXIÓN - Aiven Cloud MySQL ---
 $connectionParams = [
-    'driver'   => 'pdo_mysql',
-    'host'     => 'mysql-35e2006e-ldl-52b5.h.aivencloud.com',
-    'port'     => 26065,
-    'dbname'   => 'defaultdb',
-    'user'     => 'avnadmin',
-    'password' => 'AVNS_5akJIflVWGJfNNO7dxU',
+    'driver'   => $_ENV['DB_DRIVER'] ?? 'pdo_mysql',
+    'host'     => $_ENV['DB_HOST'],
+    'port'     => $_ENV['DB_PORT'],
+    'dbname'   => $_ENV['DB_NAME'],
+    'user'     => $_ENV['DB_USER'],
+    'password' => $_ENV['DB_PASS'],
     'charset'  => 'utf8mb4',
-    'driverOptions' => [
-        \PDO::MYSQL_ATTR_SSL_MODE => 'REQUIRED',
-    ],
 ];
 // ---------------------------------------------------------------------------------------
 

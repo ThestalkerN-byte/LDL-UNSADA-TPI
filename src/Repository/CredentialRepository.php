@@ -15,9 +15,9 @@ class CredentialRepository extends EntityRepository {
      */
     public function findActivas(): array {
         return $this->createQueryBuilder('c')
-            ->where('c.estado = :estado')
-            ->andWhere('c.esActiva = true')
-            ->setParameter('estado', 'ACTIVA')
+            ->where('c.esActiva = true')
+            ->andWhere('c.fechaVencimiento >= :hoy')
+            ->setParameter('hoy', new \DateTimeImmutable('today'))
             ->getQuery()
             ->getResult();
     }
