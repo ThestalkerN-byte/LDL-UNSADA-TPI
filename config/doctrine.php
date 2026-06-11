@@ -42,12 +42,12 @@ $config->enableNativeLazyObjects(true);
 // Configurar la conexión a la base de datos
 // Los valores vienen del archivo .env cargado en bin/doctrine.php o index.php
 $connection = DriverManager::getConnection([
-    'driver'   => $_ENV['DB_DRIVER'],       // pdo_mysql, pdo_pgsql, pdo_sqlite, etc.
-    'host'     => $_ENV['DB_HOST'],          // 127.0.0.1
-    'port'     => $_ENV['DB_PORT'],          // 3306
-    'dbname'   => $_ENV['DB_NAME'],          // credenciales_digitales
-    'user'     => $_ENV['DB_USER'],          // root
-    'password' => $_ENV['DB_PASS'],          // contraseña
+    'driver'   => $_ENV['DB_DRIVER'] ?? 'pdo_mysql',       // pdo_mysql, pdo_pgsql, pdo_sqlite, etc.
+    'host'     => $_ENV['DB_HOST'] ?? '127.0.0.1',          // 127.0.0.1
+    'port'     => $_ENV['DB_PORT'] ?? 3306,                 // 3306
+    'dbname'   => $_ENV['DB_NAME'] ?? 'credenciales_digitales',
+    'user'     => $_ENV['DB_USER'] ?? 'root',
+    'password' => $_ENV['DB_PASS'] ?? $_ENV['DB_PASSWORD'] ?? '',
     'charset'  => 'utf8mb4',                 // soporte completo de Unicode (emojis, acentos)
 ], $config);
 

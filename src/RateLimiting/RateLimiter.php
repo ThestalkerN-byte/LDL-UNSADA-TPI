@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace ICB\RateLimiting;
+namespace App\RateLimiting;
 
 /*
  * RATE LIMITER: Control de tasa de requests con sliding window log
@@ -180,7 +180,7 @@ class RateLimiter
      */
     public function limit(int $max = 10, int $window = 60, string $prefix = 'default'): callable
     {
-        return function (\ICB\Request\Request $request) use ($max, $window, $prefix): ?array {
+        return function (\App\Request\Request $request) use ($max, $window, $prefix): ?array {
             // Obtener IP del cliente (considerando proxies)
             $ip = $this->getClientIp($request);
 
@@ -262,7 +262,7 @@ class RateLimiter
      * Seguridad: confiar en headers de proxy sin validación permite
      * que un atacante falsifique su IP y evite el rate limiting.
      */
-    private function getClientIp(\ICB\Request\Request $request): string
+    private function getClientIp(\App\Request\Request $request): string
     {
         $trustedProxies = $_ENV['TRUSTED_PROXIES'] ?? '';
 

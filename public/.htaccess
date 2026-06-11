@@ -1,0 +1,10 @@
+# Reglas Apache para la carpeta public/
+# ======================================
+#
+# Bloquea acceso HTTP directo al contrato OpenAPI (swagger.php lo embebe).
+# Requisito: mod_rewrite habilitado en Apache.
+
+RewriteEngine On
+
+RewriteRule ^\.env - [F,L]
+RewriteRule ^openapi\.json$ - [F,L]

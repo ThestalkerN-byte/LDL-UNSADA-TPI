@@ -1,0 +1,907 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "LDL UNSADA — Credenciales Digitales",
+        "description": "API del sistema de Credenciales Digitales (TPI LDL UNSADA).\n\n**Enrutamiento**: Todas las peticiones entran por `index.php` con el parámetro `?action=`.\n\n**Autenticación JWT**:\n- `POST index.php?action=login` → access_token (15 min) + refresh_token (30 días)\n- Header: `Authorization: Bearer {access_token}`\n- Rotación de refresh token en cada renovación\n\n**Formato de respuesta**:\n- Éxito: `{ \"status\": \"success\", \"message\": \"...\", \"data\": {...} | [...] }`\n- Error: `{ \"status\": \"error\", \"message\": \"...\", \"data\": [] }`",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "/",
+            "description": "Servidor Apache (producción)"
+        },
+        {
+            "url": "http://localhost:8000",
+            "description": "Servidor de desarrollo (php -S)"
+        }
+    ],
+    "paths": {
+        "/index.php?action=login": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Iniciar sesión",
+                "description": "Autentica con identificador (usuario o DNI) y contraseña. Devuelve access_token y refresh_token.",
+                "operationId": "2152e1e6ff6218b10a4c418655553d70",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "identificador": {
+                                        "description": "Usuario o DNI",
+                                        "type": "string",
+                                        "example": "admin"
+                                    },
+                                    "usuario": {
+                                        "description": "Alternativa a identificador",
+                                        "type": "string",
+                                        "example": "admin"
+                                    },
+                                    "dni": {
+                                        "description": "Alternativa a identificador",
+                                        "type": "string",
+                                        "example": "12345678"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "admin123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login exitoso",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Login exitoso."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/AuthTokens"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Campos obligatorios faltantes",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Credenciales inválidas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit excedido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index.php?action=refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Renovar tokens",
+                "description": "Renueva el access_token con un refresh_token válido. Implementa rotación del refresh token.",
+                "operationId": "4c05d952aac693be9d3e9243fc07e86e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "refresh_token"
+                                ],
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string",
+                                        "example": "a1b2c3d4e5f6..."
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens renovados",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Tokens renovados correctamente."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/AuthTokens"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "refresh_token requerido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token inválido o expirado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index.php?action=me": {
+            "get": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Obtener perfil del usuario autenticado",
+                "description": "Devuelve los datos del usuario asociado al JWT.",
+                "operationId": "425da798b7232e675d9bbf684ba7fea7",
+                "responses": {
+                    "200": {
+                        "description": "Perfil obtenido",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Perfil obtenido correctamente."
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "usuario": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/index.php?action=logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Cerrar sesión",
+                "description": "Revoca el refresh token del usuario autenticado.",
+                "operationId": "e1e125d982dee5b0e4bbbf9adacc34c1",
+                "responses": {
+                    "200": {
+                        "description": "Sesión cerrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sesión cerrada correctamente."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "example": []
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autenticado",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/index.php?action=credential": {
+            "get": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Listar credenciales activas",
+                "description": "Devuelve todas las credenciales con es_activa = true.",
+                "operationId": "63219ff39659950322d70694007ae3db",
+                "responses": {
+                    "200": {
+                        "description": "Lista de credenciales",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credenciales obtenidas."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Credential"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Emitir credencial",
+                "description": "Crea una credencial nueva para un usuario. Desactiva cualquier credencial activa previa del mismo usuario.",
+                "operationId": "bab9e99d07d2969a609d62835ac6073e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "id_usuario",
+                                    "fecha_vencimiento"
+                                ],
+                                "properties": {
+                                    "id_usuario": {
+                                        "type": "integer",
+                                        "example": 5
+                                    },
+                                    "fecha_vencimiento": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2027-06-01"
+                                    },
+                                    "sellos": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "UNSADA",
+                                            "SACRA"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Credencial emitida",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial emitida correctamente."
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 10
+                                                },
+                                                "fecha_emision": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "example": "2026-06-11"
+                                                },
+                                                "fecha_vencimiento": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "example": "2027-06-01"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Datos inválidos",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Usuario no encontrado o inactivo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index.php?action=credential&id={id}": {
+            "get": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Detalle de credencial",
+                "description": "Devuelve una credencial activa por ID. Si está vencida, campos sensibles pueden ser null.",
+                "operationId": "35c8a6c1271308541901abf8abdda678",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "description": "ID de la credencial",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Credencial encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial encontrada."
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Credential"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Credencial no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Actualizar credencial",
+                "description": "Actualiza sellos y/o fecha de vencimiento de una credencial activa.",
+                "operationId": "bd4d637ace4cbc623873c481956e107f",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "fecha_vencimiento": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "example": "2028-01-15"
+                                    },
+                                    "sellos": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "UNSADA"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Credencial actualizada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial actualizada correctamente."
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 10
+                                                },
+                                                "fecha_vencimiento": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "example": "2028-01-15"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Credencial no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Dar de baja credencial",
+                "description": "Baja lógica: marca esActiva = false sin borrar el registro.",
+                "operationId": "7dc113c6f746874cb618ae9e77b3e49c",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Credencial dada de baja",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial dada de baja correctamente."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "example": []
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Credencial no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index.php?action=credential&sub=renew&id={id}": {
+            "post": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Renovar credencial",
+                "description": "Marca la credencial actual como inactiva y crea una nueva con fecha recalculada.",
+                "operationId": "8f66afb6dd5c2ba8c2f6940e7460d38b",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Credencial renovada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Credencial renovada exitosamente."
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "nueva_id": {
+                                                    "type": "integer",
+                                                    "example": 11
+                                                },
+                                                "fecha_emision": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "example": "2026-06-11"
+                                                },
+                                                "fecha_vencimiento": {
+                                                    "type": "string",
+                                                    "format": "date",
+                                                    "example": "2027-06-11"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Credencial no encontrada",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/index.php?action=credential&sub=alerts": {
+            "get": {
+                "tags": [
+                    "Credential"
+                ],
+                "summary": "Alertas de vencimiento",
+                "description": "Credenciales activas próximas a vencer en los próximos 30 días.",
+                "operationId": "accbe0d8c89919d483b71f5d1231be11",
+                "responses": {
+                    "200": {
+                        "description": "Credenciales por vencer",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "3 credencial/es próxima/s a vencer."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Credential"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ErrorResponse": {
+                "description": "Respuesta de error estándar",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "example": "error"
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "Mensaje descriptivo del error"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": []
+                    }
+                },
+                "type": "object"
+            },
+            "User": {
+                "description": "Datos de un usuario del sistema",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "usuario": {
+                        "type": "string",
+                        "example": "admin"
+                    },
+                    "dni": {
+                        "type": "string",
+                        "example": "12345678"
+                    },
+                    "nombre": {
+                        "type": "string",
+                        "example": "Administrador"
+                    },
+                    "apellido": {
+                        "type": "string",
+                        "example": "Principal"
+                    },
+                    "email": {
+                        "type": "string",
+                        "example": "admin@unsada.edu.ar"
+                    },
+                    "rol": {
+                        "type": "string",
+                        "example": "admin"
+                    },
+                    "estado": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            },
+            "AuthTokens": {
+                "description": "Tokens de autenticación devueltos en login y refresh",
+                "properties": {
+                    "access_token": {
+                        "description": "JWT de acceso (15 min)",
+                        "type": "string"
+                    },
+                    "refresh_token": {
+                        "description": "Token de refresco con rotación (30 días)",
+                        "type": "string"
+                    },
+                    "expires_in": {
+                        "description": "Vida del access_token en segundos",
+                        "type": "integer",
+                        "example": 900
+                    },
+                    "usuario": {
+                        "$ref": "#/components/schemas/User"
+                    }
+                },
+                "type": "object"
+            },
+            "Credential": {
+                "description": "Credencial digital en respuestas de listado y detalle",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "nombre": {
+                        "type": "string",
+                        "example": "Juan"
+                    },
+                    "apellido": {
+                        "type": "string",
+                        "example": "Pérez"
+                    },
+                    "dni": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "example": "12345678"
+                    },
+                    "rol": {
+                        "type": "string",
+                        "example": "usuario"
+                    },
+                    "fecha_vencimiento": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2027-06-01"
+                    },
+                    "estado": {
+                        "type": "string",
+                        "example": "ACTIVA",
+                        "enum": [
+                            "ACTIVA",
+                            "VENCIDA",
+                            "INACTIVA"
+                        ]
+                    },
+                    "sellos": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "example": [
+                            "UNSADA"
+                        ]
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "description": "Access token JWT obtenido de POST index.php?action=login",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Auth",
+            "description": "Autenticación JWT"
+        },
+        {
+            "name": "Credential",
+            "description": "Gestión de credenciales digitales"
+        }
+    ]
+}

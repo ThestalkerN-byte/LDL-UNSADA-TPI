@@ -41,6 +41,12 @@ class User {
     #[ORM\Column(name: "foto_perfil", type: "string", length: 255, nullable: true)]
     private ?string $fotoPerfil = null;
 
+    #[ORM\Column(name: "refresh_token", type: "string", length: 512, nullable: true)]
+    private ?string $refreshToken = null;
+
+    #[ORM\Column(name: "refresh_token_expira", type: "datetime", nullable: true)]
+    private ?\DateTimeInterface $refreshTokenExpira = null;
+
     // --- Getters y setters ---
     public function getId(): int { return $this->id; }
 
@@ -70,4 +76,15 @@ class User {
 
     public function getFotoPerfil(): ?string { return $this->fotoPerfil; }
     public function setFotoPerfil(?string $fotoPerfil): void { $this->fotoPerfil = $fotoPerfil; }
+
+    public function getRefreshToken(): ?string { return $this->refreshToken; }
+    public function setRefreshToken(?string $refreshToken): void { $this->refreshToken = $refreshToken; }
+
+    public function getRefreshTokenExpira(): ?\DateTimeInterface { return $this->refreshTokenExpira; }
+    public function setRefreshTokenExpira(?\DateTimeInterface $refreshTokenExpira): void { $this->refreshTokenExpira = $refreshTokenExpira; }
+
+    public function isAdmin(): bool
+    {
+        return $this->rol === 'admin';
+    }
 }

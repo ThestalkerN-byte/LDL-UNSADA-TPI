@@ -28,54 +28,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// 4. Lee la acción solicitada desde la URL (?action=login)
-$action = $_GET['action'] ?? null;
+// 4. Construir objeto Request y leer la acción solicitada desde la URL (?action=login)
+$request = new \App\Request\Request($_SERVER, $_GET, $_POST);
+$action = $request->get('action');
+
+// 4.1 Instanciar servicios/middlewares reutilizables
+$userRepo = $entityManager->getRepository(\App\Entity\User::class);
+$authService = new \App\Service\AuthService($entityManager);
+$authMiddleware = new \App\Middleware\AuthMiddleware($entityManager, $authService);
+$rateLimiter = new \App\RateLimiting\RateLimiter();
 
 // 5. Router principal: instancia el controlador correcto inyectándole el EntityManager
 switch ($action) {
 
-    // --- Autenticación ---
+    // --- Autenticación (público con rate limit) ---
     case 'login':
+        // Aplicar rate limiter en login (5 intentos por minuto por IP)
+        $rlResult = ($rateLimiter->limit(5, 60, 'login'))($request);
+        if ($rlResult !== null) {
+            http_response_code($rlResult['code'] ?? 429);
+            echo json_encode($rlResult, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         $controller = new \App\Controller\AuthController($entityManager);
         $controller->login();
         break;
 
-    case 'logout':
+    case 'refresh':
+        // Aplicar rate limiter en refresh (10 intentos por minuto por IP)
+        $rlResult = ($rateLimiter->limit(10, 60, 'refresh'))($request);
+        if ($rlResult !== null) {
+            http_response_code($rlResult['code'] ?? 429);
+            echo json_encode($rlResult, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         $controller = new \App\Controller\AuthController($entityManager);
-        $controller->logout();
+        $controller->refresh();
+        break;
+
+    // --- Autenticación (requiere JWT) ---
+    case 'me':
+        $authRes = ($authMiddleware->autenticado())($request);
+        if ($authRes !== null) {
+            http_response_code($authRes['code'] ?? 401);
+            echo json_encode($authRes, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
+        $controller = new \App\Controller\AuthController($entityManager);
+        $controller->me($request);
+        break;
+
+    case 'logout':
+        $authRes = ($authMiddleware->autenticado())($request);
+        if ($authRes !== null) {
+            http_response_code($authRes['code'] ?? 401);
+            echo json_encode($authRes, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
+        $controller = new \App\Controller\AuthController($entityManager);
+        $controller->logout($request);
         break;
 
     // --- Usuarios (Panel Admin) ---
     case 'user':
-        $controller = new \App\Controller\UserController($entityManager);
-        $controller->handleRequest();
+        $authRes = ($authMiddleware->admin())($request);
+        if ($authRes !== null) {
+            http_response_code($authRes['code'] ?? 403);
+            echo json_encode($authRes, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
+        $controller = new \App\Controller\UserController($userRepo);
+        http_response_code(501);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Gestión de usuarios en construcción.',
+            'data' => [],
+        ], JSON_UNESCAPED_UNICODE);
         break;
 
-    // --- Credenciales ---
+    // --- Credenciales (requiere JWT) ---
     case 'credential':
+        $authRes = ($authMiddleware->autenticado())($request);
+        if ($authRes !== null) {
+            http_response_code($authRes['code'] ?? 401);
+            echo json_encode($authRes, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+
         $controller = new \App\Controller\CredentialController($entityManager);
         $controller->handleRequest();
         break;
 
     // --- Mensajería Interna ---
     case 'message':
-        $controller = new \App\Controller\MessageController($entityManager);
-        $controller->handleRequest();
+        $controller = new \App\Controller\MessageController(
+            $entityManager->getRepository(\App\Entity\Message::class)
+        );
+        http_response_code(501);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Mensajería en construcción.',
+            'data' => [],
+        ], JSON_UNESCAPED_UNICODE);
         break;
 
     // --- Historial de Auditoría ---
     case 'history':
-        $controller = new \App\Controller\HistoryController($entityManager);
-        $controller->handleRequest();
+        $controller = new \App\Controller\HistoryController(
+            $entityManager->getRepository(\App\Entity\History::class)
+        );
+        http_response_code(501);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Historial en construcción.',
+            'data' => [],
+        ], JSON_UNESCAPED_UNICODE);
         break;
 
     // --- Acción no reconocida ---
     default:
         http_response_code(404);
         echo json_encode([
-            'status'  => 'error',
+            'status' => 'error',
             'message' => 'Acción no válida o no encontrada.',
-            'data'    => [],
+            'data' => [],
         ], JSON_UNESCAPED_UNICODE);
         break;
 }

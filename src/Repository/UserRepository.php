@@ -20,4 +20,9 @@ class UserRepository extends EntityRepository {
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    public function findByIdentifier(string $identificador): ?User
+    {
+        return $this->findByUsuarioODni($identificador);
+    }
 }
