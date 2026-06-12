@@ -1,14 +1,15 @@
+```php
 <?php
-require_once __DIR__ . "/../config/Database.php";
 
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
 #[ORM\Table(name: "usuarios")]
-class User {
+class User
+{
     #[ORM\Id]
     #[ORM\GeneratedValue]
-    #[ORM\Column(type: "integer")]
+    #[ORM\Column(name: "id_usuario", type: "integer")]
     private ?int $id_usuario = null;
 
     #[ORM\Column(type: "string", length: 20, unique: true)]
@@ -32,28 +33,90 @@ class User {
     #[ORM\Column(type: "string", length: 20)]
     private string $estado;
 
-    // --- GETTERS Y SETTERS ---
+    // ==========================
+    // GETTERS Y SETTERS
+    // ==========================
 
-    public function getIdUsuario(): ?int { return $this->id_usuario; }
+    public function getIdUsuario(): ?int
+    {
+        return $this->id_usuario;
+    }
 
-    public function getDni(): string { return $this->dni; }
-    public function setDni(string $dni): void { $this->dni = $dni; }
+    public function getDni(): string
+    {
+        return $this->dni;
+    }
 
-    public function getUsuario(): string { return $this->usuario; }
-    public function setUsuario(string $usuario): void { $this->usuario = $usuario; }
+    public function setDni(string $dni): self
+    {
+        $this->dni = $dni;
+        return $this;
+    }
 
-    public function getPassword(): string { return $this->password; }
-    public function setPassword(string $password): void { $this->password = $password; }
+    public function getUsuario(): string
+    {
+        return $this->usuario;
+    }
 
-    public function getNombre(): string { return $this->nombre; }
-    public function setNombre(string $nombre): void { $this->nombre = $nombre; }
+    public function setUsuario(string $usuario): self
+    {
+        $this->usuario = $usuario;
+        return $this;
+    }
 
-    public function getApellido(): string { return $this->apellido; }
-    public function setApellido(string $apellido): void { $this->apellido = $apellido; return; }
+    public function getPassword(): string
+    {
+        return $this->password;
+    }
 
-    public function getRol(): string { return $this->rol; }
-    public function setRol(string $rol): void { $this->rol = $rol; }
+    public function setPassword(string $password): self
+    {
+        $this->password = $password;
+        return $this;
+    }
 
-    public function getEstado(): string { return $this->estado; }
-    public function setEstado(string $estado): void { $this->estado = $estado; }
+    public function getNombre(): string
+    {
+        return $this->nombre;
+    }
+
+    public function setNombre(string $nombre): self
+    {
+        $this->nombre = $nombre;
+        return $this;
+    }
+
+    public function getApellido(): string
+    {
+        return $this->apellido;
+    }
+
+    public function setApellido(string $apellido): self
+    {
+        $this->apellido = $apellido;
+        return $this;
+    }
+
+    public function getRol(): string
+    {
+        return $this->rol;
+    }
+
+    public function setRol(string $rol): self
+    {
+        $this->rol = $rol;
+        return $this;
+    }
+
+    public function getEstado(): string
+    {
+        return $this->estado;
+    }
+
+    public function setEstado(string $estado): self
+    {
+        $this->estado = $estado;
+        return $this;
+    }
 }
+```
