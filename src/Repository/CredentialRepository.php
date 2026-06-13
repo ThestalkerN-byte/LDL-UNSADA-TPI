@@ -16,6 +16,7 @@ class CredentialRepository extends EntityRepository {
     public function findActivas(): array {
         return $this->createQueryBuilder('c')
             ->where('c.estado = :estado')
+            ->andWhere('c.esActiva = true')
             ->setParameter('estado', 'ACTIVA')
             ->getQuery()
             ->getResult();
@@ -28,6 +29,7 @@ class CredentialRepository extends EntityRepository {
         $fechaLimite = (new \DateTimeImmutable())->add(new \DateInterval("P{$dias}D"));
         return $this->createQueryBuilder('c')
             ->where('c.fechaVencimiento <= :fecha')
+            ->andWhere('c.esActiva = true')
             ->setParameter('fecha', $fechaLimite)
             ->getQuery()
             ->getResult();

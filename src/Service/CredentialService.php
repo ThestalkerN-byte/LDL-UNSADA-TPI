@@ -2,6 +2,8 @@
 namespace App\Service;
 
 use App\Enum\CredentialStatus;
+use App\Entity\Credential;
+use App\DTO\CredentialDTO;
 
 /**
  * Servicio de negocio para credenciales.
@@ -44,11 +46,34 @@ class CredentialService {
     }
 
     /**
-     * Renueva la credencial extendiendo la fecha de vencimiento.
-     * Convierte siempre a DateTimeImmutable para poder usar add().
+     * Renueva la credencial extendiendo la fecha de vencimiento según la regla de negocio.
      */
     public function renovar(\DateTimeInterface $fechaActual, int $anios = 1): \DateTimeImmutable {
-        $immutable = \DateTimeImmutable::createFromInterface($fechaActual);
-        return $immutable->add(new \DateInterval("P{$anios}Y"));
+        $hoy = new \DateTimeImmutable('today');
+        
+        // Si ya venció, sumamos desde hoy. Si no, extendemos desde su vencimiento previo.
+        $baseParaCalculo = ($fechaActual < $hoy) ? $hoy : \DateTimeImmutable::createFromInterface($fechaActual);
+        return $baseParaCalculo->add(new \DateInterval("P{$anios}Y"));
+    }
+
+    /**
+     * Mapea una entidad Credential a un CredentialDTO aplicando las reglas de privacidad (CU2).
+     */
+    public function mapToDTO(Credential $credencial): CredentialDTO {
+        $user = $credencial->getUsuario();
+        $fechaVencimiento = $credencial->getFechaVencimiento();
+        $estado = $this->calcularEstado($fechaVencimiento);
+        $estaVencida = ($estado === CredentialStatus::VENCIDA);
+
+        return new CredentialDTO(
+            $credencial->getId(),
+            $user->getNombre(),
+            $user->getApellido(),
+            $estaVencida ? null : $user->getDni(),
+            $user->getRol(),
+            $fechaVencimiento,
+            $estado,
+            $estaVencida ? null : $credencial->getSellos()
+        );
     }
 }

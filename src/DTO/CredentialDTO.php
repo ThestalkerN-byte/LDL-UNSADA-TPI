@@ -11,21 +11,21 @@ class CredentialDTO {
     private int $id;
     private string $nombre;
     private string $apellido;
-    private string $dni;
+    private ?string $dni;
     private string $rol;
     private \DateTimeInterface $fechaVencimiento;
     private CredentialStatus $estado;
-    private array $sellos;
+    private ?array $sellos;
 
     public function __construct(
         int $id,
         string $nombre,
         string $apellido,
-        string $dni,
+        ?string $dni,
         string $rol,
         \DateTimeInterface $fechaVencimiento,
         CredentialStatus $estado,
-        array $sellos = []
+        ?array $sellos = []
     ) {
         $this->id = $id;
         $this->nombre = $nombre;
@@ -41,11 +41,11 @@ class CredentialDTO {
     public function getId(): int { return $this->id; }
     public function getNombre(): string { return $this->nombre; }
     public function getApellido(): string { return $this->apellido; }
-    public function getDni(): string { return $this->dni; }
+    public function getDni(): ?string { return $this->dni; }
     public function getRol(): string { return $this->rol; }
     public function getFechaVencimiento(): \DateTimeInterface { return $this->fechaVencimiento; }
     public function getEstado(): CredentialStatus { return $this->estado; }
-    public function getSellos(): array { return $this->sellos; }
+    public function getSellos(): ?array { return $this->sellos; }
 
     public function setEstado(CredentialStatus $estado): void { $this->estado = $estado; }
 }
