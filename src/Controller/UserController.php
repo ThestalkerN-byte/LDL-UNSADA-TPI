@@ -1,0 +1,297 @@
+<?php
+namespace App\Controller;
+
+use App\Entity\User;
+use App\Entity\History;
+use Doctrine\ORM\EntityManagerInterface;
+
+/**
+ * Controlador REST para gestión de usuarios (Panel de Administración).
+ *
+ * Mapea:
+ *   GET    ?action=user                → index()   Lista usuarios (filtrable)
+ *   GET    ?action=user&id={id}        → show()    Detalle de un usuario
+ *   POST   ?action=user                → create()  Crear un nuevo usuario
+ *   PUT    ?action=user&id={id}        → update()  Editar un usuario
+ *   DELETE ?action=user&id={id}        → delete()  Baja lógica de un usuario
+ */
+class UserController {
+
+    private EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em) {
+        $this->em = $em;
+    }
+
+    /**
+     * Punto de entrada principal.
+     */
+    public function handleRequest(): void {
+        $method = $_SERVER['REQUEST_METHOD'];
+        $id     = isset($_GET['id']) ? (int)$_GET['id'] : null;
+
+        match ($method) {
+            'GET'    => $id ? $this->show($id) : $this->index(),
+            'POST'   => $this->create(),
+            'PUT'    => $id ? $this->update($id) : $this->responder(400, 'error', 'Se requiere un ID para actualizar.'),
+            'DELETE' => $id ? $this->delete($id) : $this->responder(400, 'error', 'Se requiere un ID para dar de baja.'),
+            default  => $this->responder(405, 'error', 'Método HTTP no permitido.'),
+        };
+    }
+
+    /**
+     * GET ?action=user
+     * Retorna la lista de usuarios. Permite buscar/filtrar por dni, apellido o rol (RF10 / CU3).
+     */
+    private function index(): void {
+        $userRepo = $this->em->getRepository(User::class);
+        $qb = $userRepo->createQueryBuilder('u')
+            ->where('u.estado = true'); // Solo usuarios activos
+
+        // Filtrado por DNI (búsqueda parcial)
+        if (!empty($_GET['dni'])) {
+            $qb->andWhere('u.dni LIKE :dni')
+               ->setParameter('dni', '%' . trim($_GET['dni']) . '%');
+        }
+
+        // Filtrado por Apellido (búsqueda parcial)
+        if (!empty($_GET['apellido'])) {
+            $qb->andWhere('u.apellido LIKE :apellido')
+               ->setParameter('apellido', '%' . trim($_GET['apellido']) . '%');
+        }
+
+        // Filtrado por Rol (exacto)
+        if (!empty($_GET['rol'])) {
+            $qb->andWhere('u.rol = :rol')
+               ->setParameter('rol', trim($_GET['rol']));
+        }
+
+        $usuarios = $qb->getQuery()->getResult();
+
+        $data = array_map(function(User $u) {
+            return $this->serializeUser($u);
+        }, $usuarios);
+
+        $this->responder(200, 'success', 'Usuarios obtenidos correctamente.', $data);
+    }
+
+    /**
+     * GET ?action=user&id={id}
+     */
+    private function show(int $id): void {
+        $user = $this->em->getRepository(User::class)->find($id);
+
+        if (!$user || !$user->isEstado()) {
+            $this->responder(404, 'error', 'Usuario no encontrado o inactivo.');
+            return;
+        }
+
+        $this->responder(200, 'success', 'Usuario encontrado.', $this->serializeUser($user));
+    }
+
+    /**
+     * POST ?action=user
+     * Registra un nuevo usuario con la contraseña hasheada (RF08 / CU3).
+     */
+    private function create(): void {
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        // Validaciones básicas de campos obligatorios
+        $required = ['usuario', 'password', 'nombre', 'apellido', 'dni', 'email', 'rol'];
+        foreach ($required as $field) {
+            if (empty($data[$field])) {
+                $this->responder(400, 'error', "El campo '$field' es obligatorio.");
+                return;
+            }
+        }
+
+        $userRepo = $this->em->getRepository(User::class);
+
+        // Validar unicidad de usuario, dni y email
+        if ($userRepo->findOneBy(['usuario' => $data['usuario']])) {
+            $this->responder(400, 'error', 'El nombre de usuario ya está registrado.');
+            return;
+        }
+        if ($userRepo->findOneBy(['dni' => $data['dni']])) {
+            $this->responder(400, 'error', 'El DNI ya está registrado.');
+            return;
+        }
+        if ($userRepo->findOneBy(['email' => $data['email']])) {
+            $this->responder(400, 'error', 'El correo electrónico ya está registrado.');
+            return;
+        }
+
+        // Crear usuario
+        $user = new User();
+        $user->setUsuario(trim($data['usuario']));
+        $user->setPassword(password_hash($data['password'], PASSWORD_BCRYPT));
+        $user->setNombre(trim($data['nombre']));
+        $user->setApellido(trim($data['apellido']));
+        $user->setDni(trim($data['dni']));
+        $user->setEmail(trim($data['email']));
+        $user->setRol(trim($data['rol']));
+        $user->setEstado(true);
+        $user->setFotoPerfil($data['foto_perfil'] ?? null);
+
+        $this->em->persist($user);
+
+        // Registrar acción en Historial
+        $this->registrarHistorial("Creación de usuario: " . $user->getUsuario());
+
+        $this->em->flush();
+
+        $this->responder(201, 'success', 'Usuario creado correctamente.', $this->serializeUser($user));
+    }
+
+    /**
+     * PUT ?action=user&id={id}
+     * Actualiza datos del usuario (RF08 / CU3).
+     */
+    private function update(int $id): void {
+        $user = $this->em->getRepository(User::class)->find($id);
+
+        if (!$user || !$user->isEstado()) {
+            $this->responder(404, 'error', 'Usuario no encontrado o inactivo.');
+            return;
+        }
+
+        $data = json_decode(file_get_contents('php://input'), true);
+        $userRepo = $this->em->getRepository(User::class);
+
+        // Validar unicidad si cambian campos únicos
+        if (!empty($data['usuario']) && $data['usuario'] !== $user->getUsuario()) {
+            if ($userRepo->findOneBy(['usuario' => $data['usuario']])) {
+                $this->responder(400, 'error', 'El nombre de usuario ya está registrado.');
+                return;
+            }
+            $user->setUsuario(trim($data['usuario']));
+        }
+
+        if (!empty($data['dni']) && $data['dni'] !== $user->getDni()) {
+            if ($userRepo->findOneBy(['dni' => $data['dni']])) {
+                $this->responder(400, 'error', 'El DNI ya está registrado.');
+                return;
+            }
+            $user->setDni(trim($data['dni']));
+        }
+
+        if (!empty($data['email']) && $data['email'] !== $user->getEmail()) {
+            if ($userRepo->findOneBy(['email' => $data['email']])) {
+                $this->responder(400, 'error', 'El correo electrónico ya está registrado.');
+                return;
+            }
+            $user->setEmail(trim($data['email']));
+        }
+
+        // Campos editables estándar
+        if (isset($data['nombre'])) {
+            $user->setNombre(trim($data['nombre']));
+        }
+        if (isset($data['apellido'])) {
+            $user->setApellido(trim($data['apellido']));
+        }
+        if (isset($data['rol'])) {
+            $user->setRol(trim($data['rol']));
+        }
+        if (isset($data['foto_perfil'])) {
+            $user->setFotoPerfil($data['foto_perfil']);
+        }
+        if (!empty($data['password'])) {
+            $user->setPassword(password_hash($data['password'], PASSWORD_BCRYPT));
+        }
+
+        // Registrar acción en Historial
+        $this->registrarHistorial("Modificación de usuario: " . $user->getUsuario());
+
+        $this->em->flush();
+
+        $this->responder(200, 'success', 'Usuario actualizado correctamente.', $this->serializeUser($user));
+    }
+
+    /**
+     * DELETE ?action=user&id={id}
+     * Realiza la baja lógica (estado = false) (RF08 / CU3 A1).
+     */
+    private function delete(int $id): void {
+        $user = $this->em->getRepository(User::class)->find($id);
+
+        if (!$user || !$user->isEstado()) {
+            $this->responder(404, 'error', 'Usuario no encontrado o ya inactivo.');
+            return;
+        }
+
+        // Baja lógica
+        $user->setEstado(false);
+
+        // Desactivar también las credenciales activas del usuario
+        $credentialRepo = $this->em->getRepository(\App\Entity\Credential::class);
+        $credenciales = $credentialRepo->findBy(['usuario' => $user, 'esActiva' => true]);
+        foreach ($credenciales as $cred) {
+            $cred->setEsActiva(false);
+        }
+
+        // Registrar acción en Historial
+        $this->registrarHistorial("Baja de usuario: " . $user->getUsuario());
+
+        $this->em->flush();
+
+        $this->responder(200, 'success', 'Usuario dado de baja correctamente.');
+    }
+
+    /**
+     * Helper para registrar auditoría en la tabla Historial.
+     */
+    private function registrarHistorial(string $accion): void {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $adminId = $_SESSION['id_usuario'] ?? $_GET['admin_id'] ?? null;
+        $admin = null;
+        if ($adminId) {
+            $admin = $this->em->getRepository(User::class)->find((int)$adminId);
+        }
+        if (!$admin) {
+            // Fallback al primer administrador para pruebas locales
+            $admin = $this->em->getRepository(User::class)->findOneBy(['rol' => 'admin']);
+        }
+
+        if ($admin) {
+            $historial = new History();
+            $historial->setAccion($accion);
+            $historial->setFecha(new \DateTime());
+            $historial->setAdmin($admin);
+            $this->em->persist($historial);
+        }
+    }
+
+    /**
+     * Serializa la entidad User en un array asociativo sin password.
+     */
+    private function serializeUser(User $u): array {
+        return [
+            'id'          => $u->getId(),
+            'usuario'     => $u->getUsuario(),
+            'nombre'      => $u->getNombre(),
+            'apellido'    => $u->getApellido(),
+            'dni'         => $u->getDni(),
+            'email'       => $u->getEmail(),
+            'rol'         => $u->getRol(),
+            'estado'      => $u->isEstado(),
+            'foto_perfil' => $u->getFotoPerfil(),
+        ];
+    }
+
+    /**
+     * Emite la respuesta JSON estandarizada.
+     */
+    private function responder(int $httpCode, string $status, string $message, array|null $data = []): void {
+        http_response_code($httpCode);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'status'  => $status,
+            'message' => $message,
+            'data'    => $data ?? [],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}

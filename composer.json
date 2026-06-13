@@ -1,0 +1,20 @@
+{
+    "name": "scarc/ldl-unsada-tpi",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "sscarcelli-ops",
+            "email": "sscarcelli@alumnos.unsada.edu.ar"
+        }
+    ],
+    "require": {
+        "doctrine/orm": "^3.5",
+        "symfony/console": "^7.3",
+        "symfony/http-foundation": "^7.3",
+        "symfony/cache": "^7.4"
+    }
+}
