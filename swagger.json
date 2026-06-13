@@ -1,0 +1,441 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API Digital Credential System (TPI)",
+    "description": "API REST y endpoints para la gestión de credenciales digitales, usuarios, mensajería e historial de auditoría utilizando PHP, Doctrine ORM y MySQL.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Servidor de desarrollo local de PHP"
+    }
+  ],
+  "paths": {
+    "/index.php?action=login": {
+      "post": {
+        "summary": "Iniciar Sesión",
+        "description": "Permite identificarse con el DNI o el nombre de usuario y una contraseña.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["identificador", "password"],
+                "properties": {
+                  "identificador": { "type": "string", "example": "admin" },
+                  "password": { "type": "string", "example": "123456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login exitoso y sesión iniciada." },
+          "401": { "description": "Credenciales inválidas o usuario inactivo." }
+        }
+      }
+    },
+    "/index.php?action=logout": {
+      "post": {
+        "summary": "Cerrar Sesión",
+        "description": "Destruye la sesión del usuario activo en el servidor.",
+        "responses": {
+          "200": { "description": "Sesión cerrada correctamente." }
+        }
+      }
+    },
+    "/index.php?action=recover_request": {
+      "post": {
+        "summary": "Solicitar Recuperación de Contraseña",
+        "description": "Genera un código temporal de 4 dígitos guardado en sesión.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["identificador"],
+                "properties": {
+                  "identificador": { "type": "string", "example": "admin@sistema.com" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Código de recuperación generado (retornado en JSON para pruebas)." }
+        }
+      }
+    },
+    "/index.php?action=recover_reset": {
+      "post": {
+        "summary": "Restablecer Contraseña con Código",
+        "description": "Modifica la contraseña si el código de 4 dígitos coincide.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["codigo", "password"],
+                "properties": {
+                  "codigo": { "type": "string", "example": "4321" },
+                  "password": { "type": "string", "example": "nuevaClave123" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Contraseña restablecida correctamente." },
+          "400": { "description": "Código inválido o expirado." }
+        }
+      }
+    },
+    "/index.php?action=user": {
+      "get": {
+        "summary": "Listar Usuarios",
+        "description": "Devuelve la lista de usuarios activos. Permite filtrar.",
+        "parameters": [
+          { "name": "dni", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "apellido", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "rol", "in": "query", "required": false, "schema": { "type": "string", "enum": ["admin", "user"] } }
+        ],
+        "responses": {
+          "200": { "description": "Lista de usuarios obtenida." }
+        }
+      },
+      "post": {
+        "summary": "Crear Usuario",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["usuario", "password", "nombre", "apellido", "dni", "email", "rol"],
+                "properties": {
+                  "usuario": { "type": "string", "example": "juan99" },
+                  "password": { "type": "string", "example": "claveJuancito" },
+                  "nombre": { "type": "string", "example": "Juan" },
+                  "apellido": { "type": "string", "example": "Pérez" },
+                  "dni": { "type": "string", "example": "35999888" },
+                  "email": { "type": "string", "example": "juan.perez@email.com" },
+                  "rol": { "type": "string", "example": "user" },
+                  "foto_perfil": { "type": "string", "example": "https://img.freepik.com/foto-gratis/retrato-hombre-sonriente-alegre_23-2148107936.jpg" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Usuario creado con éxito." }
+        }
+      }
+    },
+    "/index.php?action=user&id={id}": {
+      "get": {
+        "summary": "Detalle de Usuario",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle de usuario devuelto." }
+        }
+      },
+      "put": {
+        "summary": "Actualizar Usuario",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nombre": { "type": "string" },
+                  "apellido": { "type": "string" },
+                  "email": { "type": "string" },
+                  "rol": { "type": "string" },
+                  "foto_perfil": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Usuario modificado correctamente." }
+        }
+      },
+      "delete": {
+        "summary": "Baja Lógica de Usuario",
+        "description": "Configura el estado a inactivo y deshabilita sus credenciales.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Usuario dado de baja." }
+        }
+      }
+    },
+    "/index.php?action=credential": {
+      "get": {
+        "summary": "Listar Credenciales Activas",
+        "description": "Devuelve las credenciales vigentes e históricas activas. Si están vencidas, oculta DNI y sellos.",
+        "responses": {
+          "200": { "description": "Lista de credenciales obtenida." }
+        }
+      },
+      "post": {
+        "summary": "Emitir Nueva Credencial",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id_usuario", "fecha_vencimiento"],
+                "properties": {
+                  "id_usuario": { "type": "integer", "example": 1 },
+                  "fecha_vencimiento": { "type": "string", "format": "date", "example": "2027-06-30" },
+                  "sellos": { "type": "array", "items": { "type": "string" }, "example": ["UNSADA", "FAIF", "ADESA"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Credencial emitida con éxito." }
+        }
+      }
+    },
+    "/index.php?action=credential&id={id}": {
+      "get": {
+        "summary": "Ver Detalle de Credencial",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle devuelto." }
+        }
+      },
+      "put": {
+        "summary": "Actualizar Credencial",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fecha_vencimiento": { "type": "string", "format": "date" },
+                  "sellos": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Credencial actualizada." }
+        }
+      },
+      "delete": {
+        "summary": "Baja de Credencial",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Credencial dada de baja." }
+        }
+      }
+    },
+    "/index.php?action=credential&sub=renew&id={id}": {
+      "post": {
+        "summary": "Renovación Inteligente",
+        "description": "Renueva la credencial. Si está vencida suma 1 año desde hoy; si sigue vigente suma 1 año a partir de su vencimiento previo.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Credencial renovada con éxito." }
+        }
+      }
+    },
+    "/index.php?action=credential&sub=alerts": {
+      "get": {
+        "summary": "Alertas de Vencimiento",
+        "description": "Devuelve las credenciales vigentes que expiran en los próximos 30 días.",
+        "responses": {
+          "200": { "description": "Lista de alertas de vencimiento obtenida." }
+        }
+      }
+    },
+    "/index.php?action=message": {
+      "get": {
+        "summary": "Listar Consultas",
+        "description": "Devuelve las consultas. Para administradores retorna todas; para usuarios comunes solo las propias.",
+        "parameters": [
+          { "name": "id_usuario", "in": "query", "required": false, "schema": { "type": "integer" } },
+          { "name": "rol", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Lista de consultas obtenida." }
+        }
+      },
+      "post": {
+        "summary": "Enviar Consulta",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["contenido"],
+                "properties": {
+                  "contenido": { "type": "string", "example": "Hola, mi credencial vence pronto, ¿cómo inicio el trámite?" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Consulta registrada." }
+        }
+      }
+    },
+    "/index.php?action=message&id={id}": {
+      "put": {
+        "summary": "Responder Consulta",
+        "description": "Registra una respuesta a la consulta y cambia su estado a Respondido.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["respuesta"],
+                "properties": {
+                  "respuesta": { "type": "string", "example": "Ya hemos recibido su solicitud. Puede renovarla desde el panel de autogestión." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Consulta respondida." }
+        }
+      }
+    },
+    "/index.php?action=history": {
+      "get": {
+        "summary": "Historial de Auditoría",
+        "description": "Devuelve la bitácora completa de acciones administrativas (solo admin).",
+        "parameters": [
+          { "name": "rol", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Bitácora de auditoría obtenida." },
+          "403": { "description": "Acceso denegado." }
+        }
+      }
+    },
+    "/index.php?action=sello": {
+      "get": {
+        "summary": "Listar Biblioteca de Sellos",
+        "description": "Devuelve todos los sellos predefinidos con nombre, imagen y descripción.",
+        "responses": {
+          "200": { "description": "Lista de sellos obtenida." }
+        }
+      },
+      "post": {
+        "summary": "Agregar Sello",
+        "description": "Crea un nuevo sello en la biblioteca. Los sellos se almacenan con nombre e imagen_url.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nombre"],
+                "properties": {
+                  "nombre":      { "type": "string", "example": "UNSADA" },
+                  "imagen_url":  { "type": "string", "example": "https://example.com/logo.png" },
+                  "descripcion": { "type": "string", "example": "Universidad Nacional de San Antonio de Areco" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Sello creado correctamente." }
+        }
+      }
+    },
+    "/index.php?action=sello&id={id}": {
+      "put": {
+        "summary": "Editar Sello",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nombre":      { "type": "string" },
+                  "imagen_url":  { "type": "string" },
+                  "descripcion": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sello actualizado." }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar Sello",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": { "description": "Sello eliminado." }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Sello": {
+        "type": "object",
+        "properties": {
+          "id":          { "type": "integer" },
+          "nombre":      { "type": "string", "example": "UNSADA" },
+          "imagen_url":  { "type": "string", "example": "https://example.com/logo.png" },
+          "descripcion": { "type": "string" }
+        }
+      },
+      "SelloAsignado": {
+        "description": "Formato del campo 'sellos' dentro de una credencial. Puede ser objeto (nuevo) o string (legacy).",
+        "oneOf": [
+          { "$ref": "#/components/schemas/Sello" },
+          { "type": "string", "example": "UNSADA" }
+        ]
+      }
+    }
+  }
+}

@@ -45,6 +45,16 @@ switch ($action) {
         $controller->logout();
         break;
 
+    case 'recover_request':
+        $controller = new \App\Controller\AuthController($entityManager);
+        $controller->recoverRequest();
+        break;
+
+    case 'recover_reset':
+        $controller = new \App\Controller\AuthController($entityManager);
+        $controller->recoverReset();
+        break;
+
     // --- Usuarios (Panel Admin) ---
     case 'user':
         $controller = new \App\Controller\UserController($entityManager);
@@ -54,6 +64,12 @@ switch ($action) {
     // --- Credenciales ---
     case 'credential':
         $controller = new \App\Controller\CredentialController($entityManager);
+        $controller->handleRequest();
+        break;
+
+    // --- Biblioteca de Sellos (Predefinidos con imagen) ---
+    case 'sello':
+        $controller = new \App\Controller\SelloController($entityManager);
         $controller->handleRequest();
         break;
 

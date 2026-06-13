@@ -48,11 +48,11 @@ class CredentialService {
     /**
      * Renueva la credencial extendiendo la fecha de vencimiento según la regla de negocio.
      */
-    public function renovar(\DateTimeInterface $fechaActual, int $anios = 1): \DateTimeImmutable {
-        $hoy = new \DateTimeImmutable('today');
+    public function renovar(\DateTimeInterface $fechaActual, int $anios = 1): \DateTime {
+        $hoy = new \DateTime('today');
         
         // Si ya venció, sumamos desde hoy. Si no, extendemos desde su vencimiento previo.
-        $baseParaCalculo = ($fechaActual < $hoy) ? $hoy : \DateTimeImmutable::createFromInterface($fechaActual);
+        $baseParaCalculo = ($fechaActual < $hoy) ? $hoy : \DateTime::createFromInterface($fechaActual);
         return $baseParaCalculo->add(new \DateInterval("P{$anios}Y"));
     }
 

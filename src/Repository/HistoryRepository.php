@@ -13,10 +13,10 @@ class HistoryRepository extends EntityRepository {
     /**
      * Buscar historial por usuario administrador.
      */
-    public function findByAdmin(string $usuarioAdmin): array {
+    public function findByAdmin(\App\Entity\User $admin): array {
         return $this->createQueryBuilder('h')
-            ->where('h.usuarioAdmin = :admin')
-            ->setParameter('admin', $usuarioAdmin)
+            ->where('h.admin = :admin')
+            ->setParameter('admin', $admin)
             ->getQuery()
             ->getResult();
     }

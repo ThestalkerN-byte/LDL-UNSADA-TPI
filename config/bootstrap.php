@@ -28,7 +28,7 @@ $connectionParams = [
     'password' => 'AVNS_5akJIflVWGJfNNO7dxU',
     'charset'  => 'utf8mb4',
     'driverOptions' => [
-        \PDO::MYSQL_ATTR_SSL_MODE => 'REQUIRED',
+        1014 => 'REQUIRED',
     ],
 ];
 // ---------------------------------------------------------------------------------------

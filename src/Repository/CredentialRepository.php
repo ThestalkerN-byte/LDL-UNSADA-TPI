@@ -15,21 +15,22 @@ class CredentialRepository extends EntityRepository {
      */
     public function findActivas(): array {
         return $this->createQueryBuilder('c')
-            ->where('c.estado = :estado')
-            ->andWhere('c.esActiva = true')
-            ->setParameter('estado', 'ACTIVA')
+            ->where('c.esActiva = true')
             ->getQuery()
             ->getResult();
     }
 
     /**
-     * Buscar credenciales próximas a vencer en X días.
+     * Buscar credenciales próximas a vencer en X días (y que no estén ya vencidas).
      */
     public function findPorVencer(int $dias = 30): array {
-        $fechaLimite = (new \DateTimeImmutable())->add(new \DateInterval("P{$dias}D"));
+        $hoy = new \DateTimeImmutable('today');
+        $fechaLimite = $hoy->add(new \DateInterval("P{$dias}D"));
         return $this->createQueryBuilder('c')
-            ->where('c.fechaVencimiento <= :fecha')
+            ->where('c.fechaVencimiento >= :hoy')
+            ->andWhere('c.fechaVencimiento <= :fecha')
             ->andWhere('c.esActiva = true')
+            ->setParameter('hoy', $hoy)
             ->setParameter('fecha', $fechaLimite)
             ->getQuery()
             ->getResult();
