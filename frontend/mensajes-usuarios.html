@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICB - Mis Mensajes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <button class="btn-header" onclick="window.location.href='credencial.html'">Volver al Inicio</button>
+        <div class="header-right">
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+        </div>
+    </header>
+
+    <main class="container px-3 mt-4 pb-5" style="max-width: 800px; margin: 0 auto; flex: 1;">
+        
+        <h3 class="text-center fw-bold mb-4" style="color: var(--primary-color, #00154a); text-transform: uppercase;">Mensajes</h3>
+
+        <div class="card bg-white shadow-sm p-4 border-0 mb-4" style="border-radius: 12px; border: 1px solid #DEE2E6 !important;">
+            <div class="d-flex justify-content-end mb-2">
+                <small class="text-muted">Hoy, 19:30 hs</small>
+            </div>
+            
+            <div class="msg-usuario">
+                <h6 class="fw-bold mb-2" style="color: #333;">Tu mensaje:</h6>
+                <p class="mb-0 text-dark">"Hola, acabo de cambiar mi número de celular. ¿Podrían actualizarlo en mi perfil al 03329-123456? Gracias."</p>
+            </div>
+
+            <div class="msg-admin">
+                <h6 class="fw-bold mb-2" style="color: #065f46;">Respuesta del administrador:</h6>
+                <p class="mb-0 text-dark">¡Hola! Ya hemos actualizado tu número de teléfono en el sistema. Podés verificarlo viendo el reverso de tu credencial. ¡Saludos!</p>
+            </div>
+
+            <div class="mt-3">
+                <textarea class="form-control mb-3" rows="2" placeholder="Escribe tu respuesta..." style="border-radius: 10px; resize: none; border: 1px solid #DEE2E6;"></textarea>
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-admin-primary px-4 py-2" onclick="alert('Respuesta enviada al administrador.')">Enviar Respuesta</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card bg-white shadow-sm p-4 border-0 mb-4" style="border-radius: 12px; border: 1px solid #DEE2E6 !important;">
+            <div class="d-flex justify-content-end mb-2">
+                <small class="text-muted">Ayer, 10:15 hs</small>
+            </div>
+            
+            <div class="msg-usuario mb-0">
+                <h6 class="fw-bold mb-2" style="color: #333;">Tu mensaje:</h6>
+                <p class="mb-0 text-dark">"Quisiera saber si hay alguna reunión programada para los pastores auxiliares este fin de semana."</p>
+            </div>
+            
+            <div class="text-center mt-4">
+                <small class="text-muted fst-italic">El administrador aún no ha respondido a este mensaje.</small>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
