@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I&B - Nuevo Usuario</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body style="background-color: #F8F9FA;">
+
+    <!-- Overlay -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Menú lateral -->
+    <nav class="side-menu" id="sideMenu">
+        <button class="side-menu-close" id="btnCloseMenu">✕</button>
+        <div class="side-menu-header">
+            <div class="side-menu-avatar">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" fill="rgba(255,255,255,0.85)"/></svg>
+            </div>
+            <div class="side-menu-info">
+                <div class="name">Cristhian Petrecca</div>
+                <div class="role">Administrador</div>
+            </div>
+        </div>
+        <div class="side-menu-nav">
+            <a href="admin-usuarios.html" class="menu-item active">Credenciales</a>
+            <a href="mensajes.html"       class="menu-item">Mensajes</a>
+            <a href="sellos.html"         class="menu-item">Editar Sellos</a>
+        </div>
+        <div class="side-menu-footer">
+            <button class="menu-item menu-item-danger">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-icb px-3 py-3 shadow-sm">
+        <div class="container-fluid max-w-custom d-flex justify-content-between align-items-center">
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Hamburguesa -->
+                <button class="btn-hamburger" id="btnOpenMenu" aria-label="Abrir menú">
+                    <span></span><span></span><span></span>
+                </button>
+
+                <!-- Campana -->
+                <div class="navbar-bell-wrapper">
+                    <i class="bi bi-bell-fill text-warning" id="btnBell" style="font-size: 1.5rem; cursor: pointer;"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                        id="bellBadge"
+                        style="font-size: 0.6rem; transform: translate(-30%, 10%) !important;">
+                        3
+                    </span>
+                    <!-- Dropdown -->
+                    <div class="alerts-dropdown" id="alertsDropdown">
+                        <div class="alerts-header">Próximas a vencer</div>
+                        <div class="alerts-list" id="alertsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+
+        </div>
+    </nav>
+
+    <div class="container px-3 mt-4 max-w-custom pb-5">
+        <div class="card bg-white card-usuario-custom shadow-sm p-4 border-0">
+            
+            <h4 class="text-center fw-bold mb-4" style="color: #0B2A4A; text-transform: uppercase; font-size: 1.2rem;">Nuevo Usuario</h4>
+            
+            <div class="admin-section">
+                <div class="section-title">INFORMACIÓN PERSONAL</div>
+                <div class="form-grid">
+                    <div class="form-field full-width">
+                        <label>Nombre y Apellido</label>
+                        <input type="text" id="nombre" placeholder="Ej: Juan Pérez">
+                    </div>
+                    <div class="form-field">
+                        <label>DNI</label>
+                        <input type="text" id="dni" placeholder="Ej: 30.123.456">
+                    </div>
+                    <div class="form-field">
+                        <label>Teléfono</label>
+                        <input type="text" id="telefono" placeholder="Ej: 11 2345-6789">
+                    </div>
+                    <div class="form-field full-width">
+                        <label>Dirección residencial</label>
+                        <input type="text" id="direccion" placeholder="Ej: San Martín 1520, Baradero">
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <div class="section-title">DATOS INSTITUCIONALES</div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Rol / Cargo</label>
+                            <input type="text" id="rol" placeholder="Ej: Ministro Ordenado Ejecutivo">
+                    </div>
+                    <div class="form-field">
+                        <label>Fecha de vencimiento (Credencial)</label>
+                        <input type="date" id="fechaVencimiento">
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <div class="section-title">CREDENCIALES DE ACCESO</div>
+                <div class="form-grid">
+                    <div class="form-field full-width">
+                        <label>Correo electrónico</label>
+                        <input type="email" id="email" placeholder="usuario@iglesia.com">
+                    </div>
+                    <div class="form-field full-width">
+                        <label>Contraseña</label>
+                        <input type="password" id="password" placeholder="Mínimo 6 caracteres">
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-admin-primary px-4 py-2" id="crearBtn">Crear Credencial</button>
+                <button class="btn btn-cancelar-custom px-4 py-2" id="volverBtn">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('crearBtn').onclick = () => {
+            const nombre = document.getElementById('nombre').value;
+            const rol = document.getElementById('rol').value;
+            
+            if (!nombre || !rol) {
+                alert('⚠️ Por favor complete el Nombre y el Rol como mínimo.');
+                return;
+            }
+            
+            alert(`✅ Credencial para ${nombre} creada exitosamente.`);
+            window.location.href = 'admin-usuarios.html';
+        };
+
+        document.getElementById('volverBtn').onclick = () => {
+            window.location.href = 'admin-usuarios.html';
+        };
+    </script>
+    <script>
+        const btnOpen  = document.getElementById('btnOpenMenu');
+        const btnClose = document.getElementById('btnCloseMenu');
+        const overlay  = document.getElementById('menuOverlay');
+        const sideMenu = document.getElementById('sideMenu');
+
+        btnOpen.addEventListener('click', () => {
+            sideMenu.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        function cerrarMenu() {
+            sideMenu.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        btnClose.addEventListener('click', cerrarMenu);
+        overlay.addEventListener('click', cerrarMenu);
+    </script>
+
+    <!-- script CAMPANA  -->
+    <script>
+    // ── CAMPANA ──
+    const alertasData = [
+        { nombre: 'Rocio Cappuccio', dni: '41.689.013', fecha: '19/06/2026', dias: 30 },
+        { nombre: 'Lautaro Vienny',  dni: '42.896.710', fecha: '11/06/2026', dias: 22 },
+        { nombre: 'Ramiro Zabala',   dni: '41.135.791', fecha: '29/05/2026', dias: 9  },
+    ];
+
+    function colorDias(dias) {
+        if (dias <= 10) return 'days-red';
+        if (dias <= 20) return 'days-orange';
+        return 'days-green';
+    }
+
+    function renderizarAlertas() {
+        const lista = document.getElementById('alertsList');
+        lista.innerHTML = '';
+        alertasData.forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'alert-card';
+            div.innerHTML = `
+                <div class="alert-card-name">${a.nombre}</div>
+                <div class="alert-card-dni">DNI: ${a.dni}</div>
+                <div class="alert-card-footer">
+                    <span style="font-size:12px; color:#475569;">Vence el ${a.fecha}</span>
+                    <span class="days-badge ${colorDias(a.dias)}">${a.dias} días</span>
+                </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                    <button class="btn-renovar-sm">Renovar</button>
+                </div>
+            `;
+            lista.appendChild(div);
+        });
+        document.getElementById('bellBadge').textContent = alertasData.length;
+    }
+
+    const btnBell      = document.getElementById('btnBell');
+    const alertsDrop   = document.getElementById('alertsDropdown');
+
+    btnBell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alertsDrop.classList.toggle('active');
+        cerrarMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
+            alertsDrop.classList.remove('active');
+        }
+    });
+
+    renderizarAlertas();
+    </script>
+</body>
+</html>

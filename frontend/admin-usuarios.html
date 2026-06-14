@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICB - Administrar Usuarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body style="background-color: #F8F9FA;">
+        <!-- Overlay -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Menú lateral -->
+    <nav class="side-menu" id="sideMenu">
+        <button class="side-menu-close" id="btnCloseMenu">✕</button>
+
+        <div class="side-menu-header">
+            <div class="side-menu-avatar">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" fill="rgba(255,255,255,0.85)"/></svg>
+            </div>
+            <div class="side-menu-info">
+                <div class="name">Cristhian Petrecca</div>
+                <div class="role">Administrador</div>
+            </div>
+        </div>
+
+        <div class="side-menu-nav">
+            <a href="admin-usuarios.html" class="menu-item active">Credenciales</a>
+            <a href="mensajes.html"    class="menu-item">Mensajes</a>
+            <a href="sellos.html"      class="menu-item">Editar Sellos</a>
+        </div>
+
+        <div class="side-menu-footer">
+            <button class="menu-item menu-item-danger" onclick="location.href='login.html'">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <nav class="navbar navbar-icb px-3 py-3 shadow-sm">
+        <div class="container-fluid max-w-custom d-flex justify-content-between align-items-center">
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Hamburguesa -->
+                <button class="btn-hamburger" id="btnOpenMenu" aria-label="Abrir menú">
+                    <span></span><span></span><span></span>
+                </button>
+
+                <!-- Campana -->
+                <div class="navbar-bell-wrapper">
+                    <i class="bi bi-bell-fill text-warning" id="btnBell" style="font-size: 1.5rem; cursor: pointer;"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                        id="bellBadge"
+                        style="font-size: 0.6rem; transform: translate(-30%, 10%) !important;">
+                        3
+                    </span>
+                    <!-- Dropdown -->
+                    <div class="alerts-dropdown" id="alertsDropdown">
+                        <div class="alerts-header">Próximas a vencer</div>
+                        <div class="alerts-list" id="alertsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+
+        </div>
+    </nav>
+
+    <div class="container px-3 mt-4 max-w-custom">
+        
+        <div class="d-flex gap-2 mb-4">
+            <input type="text" id="searchInput" class="form-control rounded-pill border-2" placeholder="Buscar por Apellido, Rol o DNI" style="border-color: #ADB5BD;">
+            <button id="btnNuevoUsuario" class="btn rounded-pill px-4 fw-bold shadow-sm" style="background-color: #0B2A4A; color: white; white-space: nowrap;">+ Nuevo</button>
+        </div>
+
+        <div id="usersList">
+            </div>
+
+    </div>
+
+    <script>
+        let usuarios = [
+            { id: 1, nombre: "Lautaro Vienny", dni: "41.689.013", rol: "Ministro Ordenado Ejecutivo", fechaVencimiento: "2030-05-30", activo: true },
+            { id: 2, nombre: "Ramiro Zabala", dni: "42.458.163", rol: "Pastor", fechaVencimiento: "2025-05-09", activo: false },
+            { id: 3, nombre: "Martina Gómez", dni: "35.123.456", rol: "Diacono", fechaVencimiento: "2026-12-15", activo: true }
+        ];
+
+        function formatearFecha(fechaISO) {
+            const fecha = new Date(fechaISO);
+            return fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric', year: 'numeric' });
+        }
+
+        function estaVencida(fechaISO) {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fechaVenc = new Date(fechaISO);
+            fechaVenc.setHours(0, 0, 0, 0);
+            return fechaVenc < hoy;
+        }
+
+        function renderizarUsuarios(filtro = '') {
+            const container = document.getElementById('usersList');
+            let usuariosFiltrados = usuarios;
+            
+            if (filtro.trim() !== '') {
+                const busqueda = filtro.toLowerCase();
+                usuariosFiltrados = usuarios.filter(user => 
+                    user.nombre.toLowerCase().includes(busqueda) ||
+                    user.rol.toLowerCase().includes(busqueda) ||
+                    user.dni.includes(busqueda)
+                );
+            }
+            
+            container.innerHTML = '';
+            
+            if (usuariosFiltrados.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted mt-5">No se encontraron usuarios</div>';
+                return;
+            }
+            
+            usuariosFiltrados.forEach(user => {
+                const vencida = estaVencida(user.fechaVencimiento);
+                const estadoTexto = vencida ? 'VENCIDA' : 'ACTIVA';
+                const estadoColor = vencida ? 'bg-danger' : 'bg-success'; 
+                const fechaFormateada = formatearFecha(user.fechaVencimiento);
+                const fechaColor = vencida ? 'text-danger' : 'text-dark';
+                
+                const card = document.createElement('div');
+                card.className = 'card bg-white card-usuario-custom shadow-sm';
+                card.innerHTML = `
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0" style="color: #0B2A4A;">${user.nombre}</h5>
+                            <span class="badge ${estadoColor} rounded-pill px-3 py-2">${estadoTexto}</span>
+                        </div>
+                        
+                        <p class="text-secondary small mb-3" style="font-size: 0.85rem;">
+                            DNI: ${user.dni} | Rol: ${user.rol}<br>
+                            Vence: <strong class="${fechaColor}">${fechaFormateada}</strong>
+                        </p>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="window.location.href='editar-usuario.html?id=${user.id}'">Editar</button>
+    
+                            <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="abrirModalEliminar()">Eliminar</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderizarUsuarios(e.target.value);
+        });
+        
+        document.getElementById('btnNuevoUsuario').onclick = () => {
+            window.location.href = 'nuevo-usuario.html';
+        };
+        
+        renderizarUsuarios('');
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const btnOpen  = document.getElementById('btnOpenMenu');
+        const btnClose = document.getElementById('btnCloseMenu');
+        const overlay  = document.getElementById('menuOverlay');
+        const sideMenu = document.getElementById('sideMenu');
+
+        btnOpen.addEventListener('click', () => {
+            sideMenu.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        function cerrarMenu() {
+            sideMenu.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        btnClose.addEventListener('click', cerrarMenu);
+        overlay.addEventListener('click', cerrarMenu);
+
+        // Funciones para el Modal de Eliminar
+        function abrirModalEliminar() {
+    // Busca el modal y le cambia el display para que aparezca centrado
+            document.getElementById('modalEliminar').style.display = 'flex';
+        }
+
+        function cerrarModalEliminar() {
+    // Vuelve a ocultar el modal
+             document.getElementById('modalEliminar').style.display = 'none';
+        }
+
+        function confirmarEliminacion() {
+    // Por ahora solo mostramos un aviso y cerramos el modal.
+    // Más adelante, acá irá el "fetch()" que conectará con el Swagger del backend.
+            alert("Usuario eliminado correctamente (Simulación)");
+            cerrarModalEliminar();
+        }
+
+    </script>
+
+    <!-- script CAMPANA  -->
+    <script>
+    // ── CAMPANA ──
+    const alertasData = [
+        { nombre: 'Rocio Cappuccio', dni: '41.689.013', fecha: '19/06/2026', dias: 30 },
+        { nombre: 'Lautaro Vienny',  dni: '42.896.710', fecha: '11/06/2026', dias: 22 },
+        { nombre: 'Ramiro Zabala',   dni: '41.135.791', fecha: '29/05/2026', dias: 9  },
+    ];
+
+    function colorDias(dias) {
+        if (dias <= 10) return 'days-red';
+        if (dias <= 20) return 'days-orange';
+        return 'days-green';
+    }
+
+    function renderizarAlertas() {
+        const lista = document.getElementById('alertsList');
+        lista.innerHTML = '';
+        alertasData.forEach(a => {
+            const div = document.createElement('div');
+            div.className = 'alert-card';
+            div.innerHTML = `
+                <div class="alert-card-name">${a.nombre}</div>
+                <div class="alert-card-dni">DNI: ${a.dni}</div>
+                <div class="alert-card-footer">
+                    <span style="font-size:12px; color:#475569;">Vence el ${a.fecha}</span>
+                    <span class="days-badge ${colorDias(a.dias)}">${a.dias} días</span>
+                </div>
+            `;
+            lista.appendChild(div);
+        });
+        document.getElementById('bellBadge').textContent = alertasData.length;
+    }
+
+    
+
+    const btnBell      = document.getElementById('btnBell');
+    const alertsDrop   = document.getElementById('alertsDropdown');
+
+    btnBell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alertsDrop.classList.toggle('active');
+        cerrarMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
+            alertsDrop.classList.remove('active');
+        }
+    });
+
+    renderizarAlertas();
+    </script>
+
+    <div id="modalEliminar" class="modal-overlay">
+    <div class="modal-card">
+        <h4 class="modal-title">¿Eliminar Usuario?</h4>
+        <p class="modal-text">Estás a punto de eliminar a este usuario del sistema. Esta acción no se puede deshacer.</p>
+        <div class="modal-buttons">
+            <button class="btn btn-cancelar-custom px-4 py-2" onclick="cerrarModalEliminar()">Cancelar</button>
+            <button class="btn btn-danger px-4 py-2" onclick="confirmarEliminacion()">Sí, Eliminar</button>
+        </div>
+    </div>
+</div>
+    
+</body>
+</html>
