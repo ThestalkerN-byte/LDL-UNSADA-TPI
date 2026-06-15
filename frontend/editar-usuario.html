@@ -173,6 +173,7 @@
         
         let userId = null; 
         let fotoActual = '';
+        let credencialId = null;
 
         if (!userDni) {
             alert('Usuario no encontrado. Volviendo al listado.');
@@ -208,9 +209,16 @@
                     const listaCredenciales = respCred.data || respCred;
                     if (Array.isArray(listaCredenciales)) {
                         const miCredencial = listaCredenciales.find(c => c.dni === userDni);
-                        if (miCredencial && miCredencial.fecha_vencimiento) {
-                            document.getElementById('fechaVencimiento').value = miCredencial.fecha_vencimiento;
+                        if (miCredencial){
+                            credencialId = miCredencial.id;
+                            if (miCredencial.fecha_vencimiento){
+                                docuemnt.getElementById('fechaVencimiento').value = miCredencial.fecha_vencimiento;
+                            }
                         }
+
+                       // if (miCredencial && miCredencial.fecha_vencimiento) {
+                        //     document.getElementById('fechaVencimiento').value = miCredencial.fecha_vencimiento;
+                       // }
                     }
                 })
                 .catch(err => console.error('Error al cargar credencial:', err));
@@ -255,7 +263,7 @@
 
                 if (!respUser.ok) throw new Error('Falló al actualizar el usuario');
 
-                const respCred = await fetch(`http://localhost:8000/index.php?action=credential&id=${userId}`, {
+                const respCred = await fetch(`http://localhost:8000/index.php?action=credential&id=${credencialId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
