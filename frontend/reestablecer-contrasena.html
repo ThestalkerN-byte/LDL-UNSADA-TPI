@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICB - Restablecer Contraseña</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container vh-100 d-flex justify-content-center align-items-center">
+        <div class="login-card shadow-sm">
+            <img src="images/logo.png" alt="Logo ICB" class="logo-icb" onerror="this.src='https://via.placeholder.com/180x60/FFFFFF/0B2A4A?text=ICB+DIGITAL'">
+            <p class="subtitle">IGLESIA CRISTIANA BÍBLICA</p>
+            <h2 class="main-title" style="font-size: 2rem;">Restablecer contraseña</h2>
+            
+            <!-- Mensaje de estado (oculto por defecto) -->
+            <div id="mensajeEstado" class="alert text-center" style="display: none;" role="alert"></div>
+            
+            <form id="formRecuperacion">
+                <div class="mb-4">
+                    <label for="email" class="form-label">Correo Electrónico</label>
+                    <input type="email" class="form-control" id="email" placeholder="Ingresa tu correo" required>
+                </div>
+                 <div class="d-grid gap-2 col-8 mx-auto">
+                    <button class="btn btn-primary" type="submit" id="btnEnviar" style="background-color: #0B2A4A; border: none; border-radius: 25px;">
+                        <span id="btnTexto">Enviar</span>
+                        <span id="btnSpinner" class="spinner-border spinner-border-sm" style="display: none;" role="status" aria-hidden="true"></span>
+                    </button>
+                </div>
+                <div class="mt-4 text-center">
+                    <a href="login.html" class="text-decoration-none small" style="color: #0B2A4A; font-weight: bold;">Volver a inicio de sesión</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.getElementById('formRecuperacion').addEventListener('submit', function(e) {
+            e.preventDefault(); // Evita que se recargue la página
+            
+            const email = document.getElementById('email').value.trim();
+            const mensajeEstado = document.getElementById('mensajeEstado');
+            const btnTexto = document.getElementById('btnTexto');
+            const btnSpinner = document.getElementById('btnSpinner');
+            const btnEnviar = document.getElementById('btnEnviar');
+            
+            // Validar email
+            if (!email) {
+                mostrarMensaje('Por favor, ingresa tu correo electrónico', 'warning');
+                return;
+            }
+            
+            if (!validarEmail(email)) {
+                mostrarMensaje('Ingresa un correo electrónico válido', 'warning');
+                return;
+            }
+            
+            // Mostrar estado de carga
+            btnEnviar.disabled = true;
+            btnTexto.textContent = 'Enviando...';
+            btnSpinner.style.display = 'inline-block';
+            mensajeEstado.style.display = 'none';
+            
+            // Simulación de envío al backend (REEMPLAZAR con fetch real cuando tengan API)
+            setTimeout(() => {
+                // Cuando tengan backend, usar esto:
+                // fetch('https://tu-api.com/recuperar-password', {
+                //     method: 'POST',
+                //     headers: { 'Content-Type': 'application/json' },
+                //     body: JSON.stringify({ email: email })
+                // })
+                // .then(response => response.json())
+                // .then(data => { ... })
+                
+                console.log('Email enviado a:', email); // Para debug
+                
+                mostrarMensaje('✅ Si el correo existe en nuestra base de datos, recibirás un enlace para restablecer tu contraseña.', 'success');
+                
+                // Restablecer botón
+                btnEnviar.disabled = false;
+                btnTexto.textContent = 'Enviar';
+                btnSpinner.style.display = 'none';
+                
+                // Limpiar campo
+                document.getElementById('email').value = '';
+                
+            }, 1500); // Simula 1.5 segundos de envío
+        });
+        
+        function mostrarMensaje(texto, tipo) {
+            const mensajeEstado = document.getElementById('mensajeEstado');
+            mensajeEstado.textContent = texto;
+            mensajeEstado.className = 'alert text-center'; // Resetear clases
+            
+            // Asignar clase según tipo
+            switch(tipo) {
+                case 'success':
+                    mensajeEstado.classList.add('alert-success');
+                    break;
+                case 'warning':
+                    mensajeEstado.classList.add('alert-warning');
+                    break;
+                case 'danger':
+                    mensajeEstado.classList.add('alert-danger');
+                    break;
+                default:
+                    mensajeEstado.classList.add('alert-info');
+            }
+            
+            mensajeEstado.style.display = 'block';
+        }
+        
+        function validarEmail(email) {
+            const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return regex.test(email);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credencial Digital Institucional</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <button class="btn-header" onclick="location.href='login.html'">Cerrar Sesión</button>
+        <div class="header-right">
+            <a href="mensajes-usuarios.html">
+                <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                    <path d="M224 0c-17.7 0-32 14.3-32 32V51.2C119 66 64 130.6 64 208v118.8c0 47-17.3 92-48.4 127.6l-7.4 8.3c-8.4 9.4-10.4 22.9-5.3 34.4S19.4 512 32 512H416c12.6 0 24-7.4 29.1-18.9s3.1-25-5.3-34.4l-7.4-8.3C401.3 418.8 384 373.8 384 326.8V208c0-77.4-55-142-128-156.8V32c0-17.7-14.3-32-32-32zm45.3 493.3c12-12 18.7-28.3 18.7-45.3H224 160c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7z"/>
+                </svg>
+            </a>
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+        </div>
+    </header>
+
+    <main>
+        <div class="card-container" id="credencial">
+            <div class="card-flipper">
+                
+                <div class="card-face card-front">
+                    <div class="card-top">
+                        <img src="images/logo.png" alt="ICB" class="icb-logo" onerror="this.outerHTML='<strong>I&B</strong>'">
+                        <img src="images/ministerio.png" alt="Ministerio" class="min-logo">
+                    </div>
+                    <div class="card-content-front">
+                        <div class="photo-area">
+                            <img src="perfil.jpg" alt="Foto" class="profile-pic" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'100\'><rect width=\'80\' height=\'100\' fill=\'black\'/><circle cx=\'40\' cy=\'40\' r=\'20\' fill=\'white\'/><path d=\'M 10 100 C 10 70 70 70 70 100\' fill=\'white\'/></svg>'">
+                            <div class="badge-vencida">VENCIDA</div>
+                        </div>
+                        <div class="user-info">
+                            <label>Apellido</label>
+                            <p>CAPPUCCIO</p>
+                            
+                            <label>Nombre</label>
+                            <p>ROCIO ANTONELLA</p>
+                            
+                            <label>DNI</label>
+                            <p>12.345.678</p>
+                            
+                            <label>ROL</label>
+                            <p>PASTOR</p>
+                            
+                            <label>Vencimiento</label>
+                            <p>01/05/2026</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-face card-back">
+                    <div class="card-top">
+                        <img src="images/logo.png" alt="ICB" class="icb-logo" onerror="this.outerHTML='<strong>I&B</strong>'">
+                        <img src="images/ministerio.png" alt="Ministerio" class="min-logo">
+                    </div>
+                    <div class="card-content-back">
+                        <div class="contact-info">
+                            <label>Dirección</label>
+                            <p>San Martín 1520,<br>Baradero, Bs.As</p>
+                            
+                            <label>Teléfono</label>
+                            <p>03329 - 258975</p>
+                            
+                            <label>Correo electrónico</label>
+                            <p>racappuccio@gmail.com</p>
+                        </div>
+                        <div class="stamps-area">
+                            <img src="images/aciera.png" alt="ACIERA">
+                            <img src="images/faie.png" alt="FAIE">
+                            <img src="images/fecep.png" alt="FECEP">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <button class="btn-action" id="btnFlip">Ver Reverso y Sellos</button>
+    </main>
+
+    <footer>
+        <button class="btn-footer">Enviar consulta</button>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const credencial = document.getElementById('credencial');
+            const btnFlip = document.getElementById('btnFlip');
+
+            if(btnFlip && credencial) {
+                btnFlip.addEventListener('click', () => {
+                    credencial.classList.toggle('flipped');
+                    
+                    if (credencial.classList.contains('flipped')) {
+                        btnFlip.textContent = 'Volver al Frente';
+                    } else {
+                        btnFlip.textContent = 'Ver Reverso y Sellos';
+                    }
+                });
+            }
+        });
+    </script>
+    <script>document.addEventListener('DOMContentLoaded', function() {
+    const botonVolver = document.querySelector('.btn-footer');
+    
+    if(botonVolver) {
+        botonVolver.addEventListener('click', function() {
+            window.location.href = 'enviar-consulta.html';
+        });
+    }
+});</script>
+</body>
+</html>
