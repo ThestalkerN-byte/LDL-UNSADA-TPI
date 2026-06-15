@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICB - Mis Mensajes</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <button class="btn-header" onclick="window.location.href='credencial.html'">Volver al Inicio</button>
+        <div class="header-right">
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+        </div>
+    </header>
+
+    <main class="container px-3 mt-4 pb-5" style="max-width: 800px; margin: 0 auto; flex: 1;">
+        
+        <h3 class="text-center fw-bold mb-4" style="color: var(--primary-color, #00154a); text-transform: uppercase;">Mensajes</h3>
+
+        <div class="d-flex justify-content-between mb-4">
+            <button class="btn btn-admin-primary px-4 py-2" onclick="window.location.href='enviar-consulta.html'">Nueva Consulta</button>
+            <button class="btn btn-outline-custom rounded-pill px-4" onclick="window.location.href='credencial.html'">Volver al Inicio</button>
+        </div>
+
+        <div id="mensajesUsuarioList">
+            <!-- Los mensajes se renderizan dinámicamente -->
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Control de acceso - Redirigir si no está logueado
+            const usuarioData = sessionStorage.getItem('usuario');
+            if (!usuarioData) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const usuario = JSON.parse(usuarioData);
+
+            try {
+                // Cargar mensajes de este usuario
+                const response = await fetch(`../index.php?action=message&id_usuario=${usuario.id}&rol=user`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    const mensajes = result.data;
+                    const container = document.getElementById('mensajesUsuarioList');
+                    container.innerHTML = '';
+
+                    if (mensajes.length === 0) {
+                        container.innerHTML = '<div class="text-center text-muted mt-5">No tenés consultas enviadas.</div>';
+                        return;
+                    }
+
+                    mensajes.forEach(msg => {
+                        const card = document.createElement('div');
+                        card.className = 'card bg-white shadow-sm p-4 border-0 mb-4';
+                        card.style.borderRadius = '12px';
+                        card.style.border = '1px solid #DEE2E6';
+
+                        const dateStr = new Date(msg.fecha).toLocaleString('es-AR', {
+                            day: 'numeric',
+                            month: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+
+                        let respuestaHtml = '';
+                        if (msg.respuesta) {
+                            const dateRespStr = new Date(msg.fecha_respuesta).toLocaleString('es-AR', {
+                                day: 'numeric',
+                                month: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+
+                            respuestaHtml = `
+                                <div class="msg-admin mt-3 pt-3 border-top">
+                                    <h6 class="fw-bold mb-2" style="color: #065f46;">Respuesta del administrador:</h6>
+                                    <p class="mb-0 text-dark">${msg.respuesta}</p>
+                                    <div class="text-end mt-1">
+                                        <small class="text-muted" style="font-size: 0.75rem;">Respondido el: ${dateRespStr}</small>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            respuestaHtml = `
+                                <div class="text-center mt-4 pt-3 border-top">
+                                    <small class="text-muted fst-italic">El administrador aún no ha respondido a esta consulta.</small>
+                                </div>
+                            `;
+                        }
+
+                        card.innerHTML = `
+                            <div class="d-flex justify-content-end mb-2">
+                                <small class="text-muted">${dateStr}</small>
+                            </div>
+                            
+                            <div class="msg-usuario">
+                                <h6 class="fw-bold mb-2" style="color: #333;">Tu mensaje:</h6>
+                                <p class="mb-0 text-dark">"${msg.contenido}"</p>
+                            </div>
+
+                            ${respuestaHtml}
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al cargar mensajes:', error);
+                const container = document.getElementById('mensajesUsuarioList');
+                container.innerHTML = '<div class="text-center text-danger mt-5">Error al cargar mensajes.</div>';
+            }
+        });
+    </script>
+</body>
+</html>

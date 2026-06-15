@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I&B - Editar Usuario</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body style="background-color: #F8F9FA;">
+
+        <!-- Overlay -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Menú lateral -->
+    <nav class="side-menu" id="sideMenu">
+        <button class="side-menu-close" id="btnCloseMenu">✕</button>
+        <div class="side-menu-header">
+            <div class="side-menu-avatar">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" fill="rgba(255,255,255,0.85)"/></svg>
+            </div>
+            <div class="side-menu-info">
+                <div class="name">Cristhian Petrecca</div>
+                <div class="role">Administrador</div>
+            </div>
+        </div>
+        <div class="side-menu-nav">
+            <a href="admin-usuarios.html" class="menu-item active">Credenciales</a>
+            <a href="mensajes.html"       class="menu-item">Mensajes</a>
+            <a href="sellos.html"         class="menu-item">Editar Sellos</a>
+        </div>
+        <div class="side-menu-footer">
+            <button class="menu-item menu-item-danger">Cerrar Sesión</button>
+        </div>
+    </nav>
+    
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-icb px-3 py-3 shadow-sm">
+        <div class="container-fluid max-w-custom d-flex justify-content-between align-items-center">
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Hamburguesa -->
+                <button class="btn-hamburger" id="btnOpenMenu" aria-label="Abrir menú">
+                    <span></span><span></span><span></span>
+                </button>
+
+                <!-- Campana -->
+                <div class="navbar-bell-wrapper">
+                    <i class="bi bi-bell-fill text-warning" id="btnBell" style="font-size: 1.5rem; cursor: pointer;"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                        id="bellBadge"
+                        style="font-size: 0.6rem; transform: translate(-30%, 10%) !important;">
+                        3
+                    </span>
+                    <!-- Dropdown -->
+                    <div class="alerts-dropdown" id="alertsDropdown">
+                        <div class="alerts-header">Próximas a vencer</div>
+                        <div class="alerts-list" id="alertsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+
+        </div>
+    </nav>
+
+    <div class="container px-3 mt-4 max-w-custom pb-5">
+        <div class="card bg-white card-usuario-custom shadow-sm p-4 border-0">
+            
+            <h4 class="text-center fw-bold mb-4" style="color: #0B2A4A; text-transform: uppercase; font-size: 1.2rem;">Editar Usuario</h4>
+            
+            <div class="admin-section">
+                <div class="section-title">INFORMACIÓN PERSONAL</div>
+                <div class="form-grid">
+                    <div class="form-field full-width">
+                        <label>Nombre y Apellido</label>
+                        <input type="text" id="nombre">
+                    </div>
+                    <div class="form-field">
+                        <label>DNI</label>
+                        <input type="text" id="dni" class="readonly-field" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label>Teléfono</label>
+                        <input type="text" id="telefono">
+                    </div>
+                    <div class="form-field full-width">
+                        <label>Dirección residencial</label>
+                        <input type="text" id="direccion">
+                    </div>
+                    <div class="form-field full-width">
+                        <label>Foto de perfil</label>
+                        <input type="file" id="fotoPerfil" accept="image/*" class="form-control" style="background-color: white;">
+                        <div class="mt-2 text-center">
+                            <img id="fotoPreview" src="" alt="Vista previa" style="display:none; max-width: 120px; border-radius: 8px; border: 1px solid #ddd;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <div class="section-title">DATOS INSTITUCIONALES</div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Rol / Cargo</label>
+                            <input type="text" id="rol" placeholder="Ej: Pastor, Administrador, etc.">
+                    </div>
+                    <div class="form-field">
+                        <label>Fecha de vencimiento (Credencial)</label>
+                        <input type="date" id="fechaVencimiento">
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <div class="section-title">SELLOS DE LA CREDENCIAL</div>
+                <div class="row g-2 px-2" id="sellosCheckboxGrid">
+                    <!-- Rendered via JS -->
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <div class="section-title">CREDENCIALES DE ACCESO</div>
+                <div class="form-grid">
+                    <div class="form-field full-width">
+                        <label>Correo electrónico</label>
+                        <input type="email" id="email">
+                    </div>
+                    <div class="form-field full-width">
+                        <label>Contraseña</label>
+                        <input type="password" id="password" placeholder="Dejar en blanco para no cambiar">
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-admin-primary px-4 py-2" id="guardarBtn">Guardar Cambios</button>
+                <button class="btn btn-cancelar-custom px-4 py-2" id="volverBtn">Volver al Listado</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Control de acceso para administradores
+        const usuarioData = sessionStorage.getItem('usuario');
+        if (!usuarioData) {
+            window.location.href = 'login.html';
+        } else {
+            const usuarioObj = JSON.parse(usuarioData);
+            if (usuarioObj.rol !== 'admin') {
+                window.location.href = 'credencial.html';
+            } else {
+                // Actualizar nombre en menú lateral
+                document.addEventListener('DOMContentLoaded', () => {
+                    const sideMenuName = document.querySelector('.side-menu-info .name');
+                    if (sideMenuName) {
+                        sideMenuName.textContent = usuarioObj.nombre;
+                    }
+                });
+            }
+        }
+
+        let usuarioActual = null;
+        let credencialActual = null;
+        let fotoBase64 = null;
+        let sellosDisponibles = [];
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('id');
+
+        // Escuchar cambio en foto de perfil y convertir a base64
+        document.getElementById('fotoPerfil').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    fotoBase64 = e.target.result;
+                    const preview = document.getElementById('fotoPreview');
+                    preview.src = fotoBase64;
+                    preview.style.display = 'inline-block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Cargar sellos disponibles y renderizar checkboxes
+        function renderizarSellos(sellosDisp, sellosActivos) {
+            const container = document.getElementById('sellosCheckboxGrid');
+            container.innerHTML = '';
+            if (sellosDisp.length === 0) {
+                container.innerHTML = '<p class="text-secondary small col-12">No hay sellos predefinidos cargados.</p>';
+                return;
+            }
+            sellosDisp.forEach(sello => {
+                const div = document.createElement('div');
+                div.className = 'col-6 col-md-4';
+                div.innerHTML = `
+                    <div class="card p-2 d-flex flex-row align-items-center gap-2" style="border-radius: 8px; border: 1.5px solid #DEE2E6;">
+                        <input type="checkbox" class="sello-checkbox" value="${sello.id}" id="sello-${sello.id}">
+                        <img src="${sello.src}" alt="${sello.nombre}" style="height: 30px; object-fit: contain;" onerror="this.outerHTML=''">
+                        <label class="form-check-label small" for="sello-${sello.id}">${sello.nombre}</label>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            // Marcar sellos que ya posee
+            if (sellosActivos) {
+                sellosActivos.forEach(s => {
+                    const found = sellosDisp.find(sd => sd.nombre === s.nombre);
+                    if (found) {
+                        const chk = document.getElementById(`sello-${found.id}`);
+                        if (chk) chk.checked = true;
+                    }
+                });
+            }
+        }
+
+        // Cargar datos del usuario desde el backend (todas las peticiones en paralelo)
+        async function cargarUsuario() {
+            if (!userId) {
+                alert('Usuario no encontrado. Volviendo al listado.');
+                window.location.href = 'admin-usuarios.html';
+                return;
+            }
+
+            try {
+                // Disparar las 3 peticiones en paralelo
+                const [sellosResult, userResult, credResult] = await Promise.all([
+                    fetch('../index.php?action=sello').then(r => r.json()),
+                    fetch(`../index.php?action=user&id=${userId}`).then(r => r.json()),
+                    fetch(`../index.php?action=credential&id_usuario=${userId}`).then(r => r.json())
+                ]);
+
+                if (userResult.status !== 'success') {
+                    alert('Usuario no encontrado. Volviendo al listado.');
+                    window.location.href = 'admin-usuarios.html';
+                    return;
+                }
+
+                usuarioActual = userResult.data;
+
+                if (sellosResult.status === 'success') {
+                    sellosDisponibles = sellosResult.data.filter(s => s.visible);
+                }
+
+                if (credResult.status === 'success') {
+                    credencialActual = credResult.data[0] ?? null;
+                }
+
+                // Renderizar sellos (con los del usuario ya marcados)
+                renderizarSellos(sellosDisponibles, credencialActual?.sellos ?? null);
+
+                // Llenar formulario
+                document.getElementById('nombre').value = usuarioActual.nombre + ' ' + usuarioActual.apellido;
+                document.getElementById('dni').value = usuarioActual.dni;
+                document.getElementById('telefono').value = usuarioActual.telefono || '';
+                document.getElementById('direccion').value = usuarioActual.direccion || '';
+                document.getElementById('rol').value = usuarioActual.rol;
+                document.getElementById('email').value = usuarioActual.email;
+
+                // Cargar foto si existe
+                if (usuarioActual.foto_perfil) {
+                    const preview = document.getElementById('fotoPreview');
+                    preview.src = usuarioActual.foto_perfil;
+                    preview.style.display = 'inline-block';
+                }
+
+                if (credencialActual) {
+                    document.getElementById('fechaVencimiento').value = credencialActual.fecha_vencimiento;
+                }
+
+            } catch (error) {
+                console.error('Error al cargar usuario:', error);
+                alert('Error al cargar usuario. Volviendo al listado.');
+                window.location.href = 'admin-usuarios.html';
+            }
+        }
+
+        document.getElementById('guardarBtn').onclick = async () => {
+            const nombreCompleto = document.getElementById('nombre').value;
+            const telefono = document.getElementById('telefono').value;
+            const direccion = document.getElementById('direccion').value;
+            const rol = document.getElementById('rol').value;
+            const fechaVencimiento = document.getElementById('fechaVencimiento').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (!nombreCompleto || !rol || !email) {
+                alert('⚠️ Por favor complete el Nombre, Rol y Email como mínimo.');
+                return;
+            }
+
+            // Separar nombre y apellido
+            const partes = nombreCompleto.trim().split(' ');
+            const nombre = partes[0] || '';
+            const apellido = partes.length > 1 ? partes.slice(1).join(' ') : nombreCompleto;
+
+            // Obtener sellos seleccionados
+            const sellosSeleccionados = [];
+            sellosDisponibles.forEach(sello => {
+                const chk = document.getElementById(`sello-${sello.id}`);
+                if (chk && chk.checked) {
+                    sellosSeleccionados.push({
+                        nombre: sello.nombre,
+                        src: sello.src
+                    });
+                }
+            });
+
+            try {
+                // Actualizar usuario
+                const userData = {
+                    nombre: nombre,
+                    apellido: apellido,
+                    telefono: telefono,
+                    direccion: direccion,
+                    rol: rol,
+                    email: email
+                };
+
+                if (password) {
+                    userData.password = password;
+                }
+                if (fotoBase64) {
+                    userData.foto_perfil = fotoBase64;
+                }
+
+                const userResponse = await fetch(`../index.php?action=user&id=${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                const userResult = await userResponse.json();
+
+                if (userResult.status !== 'success') {
+                    alert(`❌ Error al actualizar usuario: ${userResult.message}`);
+                    return;
+                }
+
+                // Actualizar o crear credencial
+                if (fechaVencimiento) {
+                    if (credencialActual) {
+                        // Actualizar credencial existente
+                        await fetch(`../index.php?action=credential&id=${credencialActual.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                fecha_vencimiento: fechaVencimiento,
+                                sellos: sellosSeleccionados
+                            })
+                        });
+                    } else {
+                        // Crear nueva credencial
+                        await fetch('../index.php?action=credential', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                id_usuario: parseInt(userId),
+                                fecha_vencimiento: fechaVencimiento,
+                                sellos: sellosSeleccionados
+                            })
+                        });
+                    }
+                }
+
+                alert('✅ Usuario actualizado exitosamente.');
+                window.location.href = 'admin-usuarios.html';
+
+            } catch (error) {
+                console.error('Error al actualizar usuario:', error);
+                alert('❌ Error al actualizar usuario. Por favor intente nuevamente.');
+            }
+        };
+
+        document.getElementById('volverBtn').onclick = () => {
+            window.location.href = 'admin-usuarios.html';
+        };
+
+        // Cargar usuario al iniciar
+        cargarUsuario();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const btnOpen  = document.getElementById('btnOpenMenu');
+        const btnClose = document.getElementById('btnCloseMenu');
+        const overlay  = document.getElementById('menuOverlay');
+        const sideMenu = document.getElementById('sideMenu');
+
+        btnOpen.addEventListener('click', () => {
+            sideMenu.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        function cerrarMenu() {
+            sideMenu.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        btnClose.addEventListener('click', cerrarMenu);
+        overlay.addEventListener('click', cerrarMenu);
+
+        // ── CAMPANA DE ALERTAS REALES ──
+        function colorDias(dias) {
+            if (dias <= 10) return 'days-red';
+            if (dias <= 20) return 'days-orange';
+            return 'days-green';
+        }
+
+        async function renderizarAlertas() {
+            const lista = document.getElementById('alertsList');
+            lista.innerHTML = '';
+            
+            try {
+                const response = await fetch('../index.php?action=credential&sub=alerts');
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const alertasData = result.data;
+                    document.getElementById('bellBadge').textContent = alertasData.length;
+                    
+                    if (alertasData.length === 0) {
+                        lista.innerHTML = '<div class="p-3 text-center text-muted small">No hay credenciales por vencer</div>';
+                        return;
+                    }
+                    
+                    alertasData.forEach(a => {
+                        const fechaVenc = new Date(a.fecha_vencimiento);
+                        const hoy = new Date();
+                        const diffTime = fechaVenc - hoy;
+                        const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                        
+                        const div = document.createElement('div');
+                        div.className = 'alert-card';
+                        div.innerHTML = `
+                            <div class="alert-card-name">${a.nombre} ${a.apellido}</div>
+                            <div class="alert-card-dni">DNI: ${a.dni || 'N/A'}</div>
+                            <div class="alert-card-footer">
+                                <span style="font-size:12px; color:#475569;">Vence el ${fechaVenc.toLocaleDateString('es-AR')}</span>
+                                <span class="days-badge ${colorDias(diffDays)}">${diffDays} días</span>
+                            </div>
+                        `;
+                        lista.appendChild(div);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al cargar alertas:', error);
+            }
+        }
+
+        const btnBell      = document.getElementById('btnBell');
+        const alertsDrop   = document.getElementById('alertsDropdown');
+
+        btnBell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            alertsDrop.classList.toggle('active');
+            cerrarMenu();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
+                alertsDrop.classList.remove('active');
+            }
+        });
+
+        renderizarAlertas();
+    </script>
+</body>
+</html>

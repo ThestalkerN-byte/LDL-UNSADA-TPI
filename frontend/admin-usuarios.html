@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICB - Administrar Usuarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body style="background-color: #F8F9FA;">
+        <!-- Overlay -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Menú lateral -->
+    <nav class="side-menu" id="sideMenu">
+        <button class="side-menu-close" id="btnCloseMenu">✕</button>
+
+        <div class="side-menu-header">
+            <div class="side-menu-avatar">
+                <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" fill="rgba(255,255,255,0.85)"/></svg>
+            </div>
+            <div class="side-menu-info">
+                <div class="name">Cristhian Petrecca</div>
+                <div class="role">Administrador</div>
+            </div>
+        </div>
+
+        <div class="side-menu-nav">
+            <a href="admin-usuarios.html" class="menu-item active">Credenciales</a>
+            <a href="mensajes.html"    class="menu-item">Mensajes</a>
+            <a href="sellos.html"      class="menu-item">Editar Sellos</a>
+        </div>
+
+        <div class="side-menu-footer">
+            <button class="menu-item menu-item-danger" onclick="location.href='login.html'">Cerrar Sesión</button>
+        </div>
+    </nav>
+
+    <nav class="navbar navbar-icb px-3 py-3 shadow-sm">
+        <div class="container-fluid max-w-custom d-flex justify-content-between align-items-center">
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Hamburguesa -->
+                <button class="btn-hamburger" id="btnOpenMenu" aria-label="Abrir menú">
+                    <span></span><span></span><span></span>
+                </button>
+
+                <!-- Campana -->
+                <div class="navbar-bell-wrapper">
+                    <i class="bi bi-bell-fill text-warning" id="btnBell" style="font-size: 1.5rem; cursor: pointer;"></i>
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                        id="bellBadge"
+                        style="font-size: 0.6rem; transform: translate(-30%, 10%) !important;">
+                        3
+                    </span>
+                    <!-- Dropdown -->
+                    <div class="alerts-dropdown" id="alertsDropdown">
+                        <div class="alerts-header">Próximas a vencer</div>
+                        <div class="alerts-list" id="alertsList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+
+        </div>
+    </nav>
+
+    <div class="container px-3 mt-4 max-w-custom">
+        
+        <div class="d-flex gap-2 mb-4">
+            <input type="text" id="searchInput" class="form-control rounded-pill border-2" placeholder="Buscar por Apellido, Rol o DNI" style="border-color: #ADB5BD;">
+            <button id="btnNuevoUsuario" class="btn rounded-pill px-4 fw-bold shadow-sm" style="background-color: #0B2A4A; color: white; white-space: nowrap;">+ Nuevo</button>
+        </div>
+
+        <div id="usersList">
+            <div id="loadingUsersSpinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 0; gap:16px;">
+                <div style="width:44px;height:44px;border:5px solid #dde;border-top-color:#0B2A4A;border-radius:50%;animation:spin2 0.8s linear infinite;"></div>
+                <p style="color:#0B2A4A;font-weight:600;margin:0;">Cargando usuarios...</p>
+            </div>
+        </div>
+        <style>@keyframes spin2{to{transform:rotate(360deg);}}</style>
+    </div>
+
+    <script>
+        // Control de acceso para administradores
+        const usuarioData = sessionStorage.getItem('usuario');
+        if (!usuarioData) {
+            window.location.href = 'login.html';
+        } else {
+            const usuarioObj = JSON.parse(usuarioData);
+            if (usuarioObj.rol !== 'admin') {
+                window.location.href = 'credencial.html';
+            } else {
+                // Actualizar nombre en menú lateral
+                document.addEventListener('DOMContentLoaded', () => {
+                    const sideMenuName = document.querySelector('.side-menu-info .name');
+                    if (sideMenuName) {
+                        sideMenuName.textContent = usuarioObj.nombre;
+                    }
+                });
+            }
+        }
+
+        let usuarios = [];
+        let credenciales = [];
+
+        // Cargar usuarios y credenciales desde el backend
+        async function cargarDatos() {
+            try {
+                // Disparar ambas peticiones en paralelo para reducir el tiempo de espera a la mitad
+                const [usersResult, credsResult] = await Promise.all([
+                    fetch('../index.php?action=user').then(r => r.json()),
+                    fetch('../index.php?action=credential').then(r => r.json())
+                ]);
+
+                if (usersResult.status === 'success') {
+                    usuarios = usersResult.data;
+                }
+                if (credsResult.status === 'success') {
+                    credenciales = credsResult.data;
+                }
+
+                renderizarUsuarios();
+                document.getElementById('loadingUsersSpinner')?.remove();
+            } catch (error) {
+                console.error('Error al cargar datos:', error);
+            }
+        }
+
+        function formatearFecha(fechaISO) {
+            if (!fechaISO) return 'N/A';
+            const fecha = new Date(fechaISO);
+            return fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric', year: 'numeric' });
+        }
+
+        function estaVencida(fechaISO) {
+            if (!fechaISO) return true;
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fechaVenc = new Date(fechaISO);
+            fechaVenc.setHours(0, 0, 0, 0);
+            return fechaVenc < hoy;
+        }
+
+        function getCredencialUsuario(usuarioId) {
+            return credenciales.find(c => c.id_usuario === usuarioId);
+        }
+
+        function renderizarUsuarios(filtro = '') {
+            const container = document.getElementById('usersList');
+            let usuariosFiltrados = usuarios;
+            
+            if (filtro.trim() !== '') {
+                const busqueda = filtro.toLowerCase();
+                usuariosFiltrados = usuarios.filter(user => 
+                    (user.nombre + ' ' + user.apellido).toLowerCase().includes(busqueda) ||
+                    user.rol.toLowerCase().includes(busqueda) ||
+                    user.dni.includes(busqueda)
+                );
+            }
+            
+            container.innerHTML = '';
+            
+            if (usuariosFiltrados.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted mt-5">No se encontraron usuarios</div>';
+                return;
+            }
+            
+            usuariosFiltrados.forEach(user => {
+                const credencial = getCredencialUsuario(user.id);
+                const fechaVencimiento = credencial ? credencial.fecha_vencimiento : null;
+                const vencida = estaVencida(fechaVencimiento);
+                const estadoTexto = !fechaVencimiento ? 'SIN CREDENCIAL' : (vencida ? 'VENCIDA' : 'ACTIVA');
+                const estadoColor = !fechaVencimiento ? 'bg-secondary' : (vencida ? 'bg-danger' : 'bg-success'); 
+                const fechaFormateada = formatearFecha(fechaVencimiento);
+                const fechaColor = vencida ? 'text-danger' : 'text-dark';
+                const nombreCompleto = user.nombre + ' ' + user.apellido;
+                
+                const card = document.createElement('div');
+                card.className = 'card bg-white card-usuario-custom shadow-sm';
+                card.innerHTML = `
+                    <div class="card-body p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <h5 class="fw-bold mb-0" style="color: #0B2A4A;">${nombreCompleto}</h5>
+                            <span class="badge ${estadoColor} rounded-pill px-3 py-2">${estadoTexto}</span>
+                        </div>
+                        
+                        <p class="text-secondary small mb-3" style="font-size: 0.85rem;">
+                            DNI: ${user.dni} | Rol: ${user.rol}<br>
+                            ${fechaVencimiento ? `Vence: <strong class="${fechaColor}">${fechaFormateada}</strong>` : 'Sin credencial asignada'}
+                        </p>
+                        
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="window.location.href='editar-usuario.html?id=${user.id}'">Editar</button>
+    
+                            <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="abrirModalEliminar(${user.id})">Eliminar</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            renderizarUsuarios(e.target.value);
+        });
+        
+        document.getElementById('btnNuevoUsuario').onclick = () => {
+            window.location.href = 'nuevo-usuario.html';
+        };
+
+        // Cargar datos al iniciar
+        cargarDatos();
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const btnOpen  = document.getElementById('btnOpenMenu');
+        const btnClose = document.getElementById('btnCloseMenu');
+        const overlay  = document.getElementById('menuOverlay');
+        const sideMenu = document.getElementById('sideMenu');
+
+        btnOpen.addEventListener('click', () => {
+            sideMenu.classList.add('active');
+            overlay.classList.add('active');
+        });
+
+        function cerrarMenu() {
+            sideMenu.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        btnClose.addEventListener('click', cerrarMenu);
+        overlay.addEventListener('click', cerrarMenu);
+
+        let usuarioAEliminar = null;
+
+        // Funciones para el Modal de Eliminar
+        function abrirModalEliminar(userId) {
+            usuarioAEliminar = userId;
+            document.getElementById('modalEliminar').style.display = 'flex';
+        }
+
+        function cerrarModalEliminar() {
+            usuarioAEliminar = null;
+            document.getElementById('modalEliminar').style.display = 'none';
+        }
+
+        async function confirmarEliminacion() {
+            if (!usuarioAEliminar) return;
+
+            try {
+                const response = await fetch(`../index.php?action=user&id=${usuarioAEliminar}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert('Usuario eliminado correctamente');
+                    cerrarModalEliminar();
+                    cargarDatos(); // Recargar la lista
+                } else {
+                    alert(`Error: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Error al eliminar usuario:', error);
+                alert('Error al eliminar usuario');
+            }
+        }
+
+    </script>
+
+    <!-- script CAMPANA  -->
+    <script>
+    // ── CAMPANA DE ALERTAS REALES ──
+    function colorDias(dias) {
+        if (dias <= 10) return 'days-red';
+        if (dias <= 20) return 'days-orange';
+        return 'days-green';
+    }
+
+    async function renderizarAlertas() {
+        const lista = document.getElementById('alertsList');
+        lista.innerHTML = '';
+        
+        try {
+            const response = await fetch('../index.php?action=credential&sub=alerts');
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                const alertasData = result.data;
+                document.getElementById('bellBadge').textContent = alertasData.length;
+                
+                if (alertasData.length === 0) {
+                    lista.innerHTML = '<div class="p-3 text-center text-muted small">No hay credenciales por vencer</div>';
+                    return;
+                }
+                
+                alertasData.forEach(a => {
+                    const fechaVenc = new Date(a.fecha_vencimiento);
+                    const hoy = new Date();
+                    const diffTime = fechaVenc - hoy;
+                    const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                    
+                    const div = document.createElement('div');
+                    div.className = 'alert-card';
+                    div.innerHTML = `
+                        <div class="alert-card-name">${a.nombre} ${a.apellido}</div>
+                        <div class="alert-card-dni">DNI: ${a.dni || 'N/A'}</div>
+                        <div class="alert-card-footer">
+                            <span style="font-size:12px; color:#475569;">Vence el ${fechaVenc.toLocaleDateString('es-AR')}</span>
+                            <span class="days-badge ${colorDias(diffDays)}">${diffDays} días</span>
+                        </div>
+                    `;
+                    lista.appendChild(div);
+                });
+            }
+        } catch (error) {
+            console.error('Error al cargar alertas:', error);
+        }
+    }
+
+    const btnBell      = document.getElementById('btnBell');
+    const alertsDrop   = document.getElementById('alertsDropdown');
+
+    btnBell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alertsDrop.classList.toggle('active');
+        cerrarMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
+            alertsDrop.classList.remove('active');
+        }
+    });
+
+    renderizarAlertas();
+    </script>
+
+    <div id="modalEliminar" class="modal-overlay">
+    <div class="modal-card">
+        <h4 class="modal-title">¿Eliminar Usuario?</h4>
+        <p class="modal-text">Estás a punto de eliminar a este usuario del sistema. Esta acción no se puede deshacer.</p>
+        <div class="modal-buttons">
+            <button class="btn btn-cancelar-custom px-4 py-2" onclick="cerrarModalEliminar()">Cancelar</button>
+            <button class="btn btn-danger px-4 py-2" onclick="confirmarEliminacion()">Sí, Eliminar</button>
+        </div>
+    </div>
+</div>
+    
+</body>
+</html>
