@@ -212,8 +212,8 @@
                             </p>
 
                             <div class="d-flex gap-2">
-                                <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="window.location.href='editar-usuario.html?id=${user.id}'">Editar</button>
-                                <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="abrirModalEliminar(${user.id})">Eliminar</button>
+                                <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="window.location.href='editar-usuario.html?dni=${user.dni}'">Editar</button>
+                                <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="abrirModalEliminar('${user.dni}')">Eliminar</button>
                             </div>
                         </div>
                     `;
@@ -269,35 +269,57 @@
         overlay.addEventListener('click', cerrarMenu);
 
       // --- LÓGICA DEL MODAL DE ELIMINACIÓN ---
-        let usuarioAEliminarId = null; // Variable global para recordar a quién queremos borrar
+        let usuarioAEliminarDni = null; // Ahora recordamos el DNI, no el ID roto
 
-        function abrirModalEliminar(id) {
-            usuarioAEliminarId = id; // Guardamos el ID del usuario seleccionado
+        function abrirModalEliminar(dni) {
+            usuarioAEliminarDni = dni; 
             document.getElementById('modalEliminar').style.display = 'flex';
         }
 
         function cerrarModalEliminar() {
-            usuarioAEliminarId = null; // Limpiamos la memoria por las dudas
+            usuarioAEliminarDni = null; 
             document.getElementById('modalEliminar').style.display = 'none';
         }
 
         async function confirmarEliminacion() {
-            // Si por algún motivo no hay ID, no hacemos nada
-            if (!usuarioAEliminarId) return; 
+            if (!usuarioAEliminarDni) return; 
 
             try {
-                // Hacemos la petición DELETE a la API de tus compañeros
-                const response = await fetch(`http://localhost:8000/index.php?action=user&id=${usuarioAEliminarId}`, {
+                // 1. Buscamos en la lista completa para robar el ID real
+                const respGeneral = await fetch('http://localhost:8000/index.php?action=user', { credentials: 'include' });
+                const dataGeneral = await respGeneral.json();
+                const listaUsuarios = dataGeneral.data || dataGeneral;
+                
+                const usuarioReal = listaUsuarios.find(u => String(u.dni) === String(usuarioAEliminarDni));
+
+                if (!usuarioReal) {
+                    alert('El usuario no existe en la base de datos principal.');
+                    cerrarModalEliminar();
+                    return;
+                }
+
+                const response = await fetch(`http://localhost:8000/index.php?action=user&id=${usuarioReal.id}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
 
                 if (response.ok || response.status === 200) {
-                    // 1. Cerramos el modal
                     cerrarModalEliminar();
                     
-                    // 2. Recargamos la lista automáticamente para ver el cambio
-                    cargarUsuariosDesdeAPI();
+                    // ── TRUCO PRO: Borrado Optimista ──
+                    // Borramos al usuario de nuestra lista de JavaScript al instante
+                    usuarios = usuarios.filter(u => String(u.dni) !== String(usuarioAEliminarDni));
+                    
+                    // Redibujamos la pantalla sin esperar al servidor
+                    const filtroActual = document.getElementById('searchInput').value;
+                    renderizarUsuarios(filtroActual);
+
+                    // Por las dudas, le damos medio segundo al backend para que termine 
+                    // de borrar sus cosas y recién ahí le pedimos la lista oficial
+                    setTimeout(() => {
+                        cargarUsuariosDesdeAPI();
+                    }, 500);
+
                 } else {
                     alert('Hubo un problema al intentar dar de baja al usuario. Revisá los permisos.');
                 }

@@ -74,9 +74,13 @@
             <div class="admin-section">
                 <div class="section-title">INFORMACIÓN PERSONAL</div>
                 <div class="form-grid">
-                    <div class="form-field full-width">
-                        <label>Nombre y Apellido</label>
-                        <input type="text" id="nombre" placeholder="Ej: Juan Pérez">
+                    <div class="form-field">
+                        <label>Nombre</label>
+                        <input type="text" id="nombre" placeholder="Ej: Juan Cruz">
+                    </div>
+                    <div class="form-field">
+                        <label>Apellido</label>
+                        <input type="text" id="apellido" placeholder="Ej: Pérez">
                     </div>
                     <div class="form-field">
                         <label>DNI</label>
@@ -129,23 +133,109 @@
     </div>
 
     <script>
-        document.getElementById('crearBtn').onclick = () => {
-            const nombre = document.getElementById('nombre').value;
-            const rol = document.getElementById('rol').value;
+        document.getElementById('crearBtn').onclick = async () => {
+            // 1. Capturamos todos los valores de los inputs
+            const nombre = document.getElementById('nombre').value.trim();
+            const apellido = document.getElementById('apellido').value.trim();
+            const dni = document.getElementById('dni').value.trim();
+            const rol = document.getElementById('rol').value.trim() || 'user'; 
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const fechaVencimiento = document.getElementById('fechaVencimiento').value; // Formato YYYY-MM-DD
             
-            if (!nombre || !rol) {
-                alert('⚠️ Por favor complete el Nombre y el Rol como mínimo.');
+            // Validamos que no falten los datos obligatorios para las dos APIs
+            if (!nombre || !apellido || !dni || !password || !fechaVencimiento) {
+                alert('⚠️ Por favor complete Nombre, Apellido, DNI, Contraseña y Fecha de Vencimiento de la credencial.');
                 return;
             }
-            
-            alert(`✅ Credencial para ${nombre} creada exitosamente.`);
-            window.location.href = 'admin-usuarios.html';
+
+            // Armamos el JSON para la primer API (Crear Usuario)
+            const nuevoUsuario = {
+                usuario: dni, 
+                password: password,
+                nombre: nombre,
+                apellido: apellido,
+                dni: dni,
+                email: email,
+                rol: rol.toLowerCase(), 
+                foto_perfil: "" 
+            };
+
+            try {
+                const btn = document.getElementById('crearBtn');
+                btn.textContent = 'Guardando usuario...';
+                btn.disabled = true;
+
+                // === PETICIÓN 1: CREAR EL USUARIO ===
+                const responseUser = await fetch('http://localhost:8000/index.php?action=user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(nuevoUsuario)
+                });
+
+                if (responseUser.ok || responseUser.status === 201) {
+                    const respuestaUserJson = await responseUser.json();
+                    
+                    // Buscamos el ID que nos devuelve el back. 
+                    // Dependiendo de cómo estructuraron el JSON, suele estar en respuesta.id o respuesta.data.id
+                    const idUsuarioCreado = respuestaUserJson.id || (respuestaUserJson.data && respuestaUserJson.data.id);
+
+                    if (!idUsuarioCreado) {
+                        console.error('El backend no devolvió el ID del usuario:', respuestaUserJson);
+                        alert('⚠️ Usuario creado, pero el servidor no devolvió su ID para emitir la credencial automáticamente. Avisale al equipo de backend.');
+                        window.location.href = 'admin-usuarios.html';
+                        return;
+                    }
+
+                    // Si obtuvimos el ID, pasamos a la segunda petición
+                    btn.textContent = 'Emitiendo credencial...';
+
+                    // Armamos el JSON exacto para la segunda API (Emitir Credencial)
+                    const nuevaCredencial = {
+                        id_usuario: parseInt(idUsuarioCreado),
+                        fecha_vencimiento: fechaVencimiento,
+                        sellos: [] // Al ser nuevo, arranca sin biblioteca de sellos asignados
+                    };
+
+                    // === PETICIÓN 2: EMITIR CREDENCIAL ===
+                    const responseCred = await fetch('http://localhost:8000/index.php?action=credential', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(nuevaCredencial)
+                    });
+
+                    if (responseCred.ok || responseCred.status === 201) {
+                        alert(`✅ ¡Éxito total! Usuario creado y Credencial emitida correctamente.`);
+                        window.location.href = 'admin-usuarios.html';
+                    } else {
+                        const errorCredData = await responseCred.json();
+                        alert(`⚠️ Usuario creado, pero falló la emisión de la credencial: ${errorCredData.message || 'Error desconocido'}`);
+                        btn.textContent = 'Crear Credencial';
+                        btn.disabled = false;
+                    }
+
+                } else {
+                    const errorUserData = await responseUser.json();
+                    alert(`❌ Error al crear el usuario: ${errorUserData.message || 'Datos inválidos'}`);
+                    btn.textContent = 'Crear Credencial';
+                    btn.disabled = false;
+                }
+
+            } catch (error) {
+                console.error('Error en el circuito de registro:', error);
+                alert('❌ Error de red. Comprobá que el servidor PHP y XAMPP estén activos.');
+                document.getElementById('crearBtn').textContent = 'Crear Credencial';
+                document.getElementById('crearBtn').disabled = false;
+            }
         };
 
         document.getElementById('volverBtn').onclick = () => {
             window.location.href = 'admin-usuarios.html';
         };
     </script>
+
     <script>
         const btnOpen  = document.getElementById('btnOpenMenu');
         const btnClose = document.getElementById('btnCloseMenu');

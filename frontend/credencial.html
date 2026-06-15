@@ -137,26 +137,65 @@
                     const [anio, mes, dia] = miCredencial.fecha_vencimiento.split('-');
                     document.getElementById('cred-vencimiento').textContent = `${dia}/${mes}/${anio}`;
 
+                    // ── CÁLCULO DINÁMICO DEL ESTADO (ACTIVA / VENCIDA) ──
                     const badgeEstado = document.getElementById('cred-estado');
-                    if (miCredencial.estado !== 'ACTIVA') {
-                        badgeEstado.textContent = miCredencial.estado;
-                        badgeEstado.style.display = 'block';
+                    badgeEstado.style.display = 'inline-block'; // Aseguramos que se vea
+                    
+                    // 1. Obtenemos la fecha de hoy y limpiamos las horas
+                    const hoy = new Date();
+                    hoy.setHours(0, 0, 0, 0);
+
+                    // 2. Procesamos la fecha de vencimiento que viene de la API
+                    const fechaVencimientoCard = new Date(anio, mes - 1, dia);
+                    fechaVencimientoCard.setHours(0, 0, 0, 0);
+
+                    // 3. Comparamos y forzamos el diseño exacto
+                    if (fechaVencimientoCard < hoy) {
+                        badgeEstado.textContent = 'VENCIDA';
+                        badgeEstado.style.backgroundColor = '#ffebeb'; // Fondo rojo pastel
+                        badgeEstado.style.color = '#e74c3c';           // Letra roja fuerte
+                        badgeEstado.style.border = '2px solid #e74c3c';// Borde rojo fuerte
                     } else {
-                        badgeEstado.style.display = 'none';
+                        badgeEstado.textContent = 'ACTIVA';
+                        badgeEstado.style.backgroundColor = '#e8f8e8'; // Fondo verde pastel
+                        badgeEstado.style.color = '#28a745';           // Letra verde fuerte
+                        badgeEstado.style.border = '2px solid #28a745';// Borde verde fuerte
                     }
 
+                    // ── CARGA DE SELLOS INSTITUCIONALES (GLOBALES) ──
+                  // ── CARGA DE SELLOS INSTITUCIONALES (GLOBALES) ──
                     const contenedorSellos = document.getElementById('cred-sellos');
-                    contenedorSellos.innerHTML = '';
-                    miCredencial.sellos.forEach(sello => {
-                        const img = document.createElement('img');
-                        if (typeof sello === 'string') {
-                            img.alt = sello;
-                            img.src = `images/${sello.toLowerCase()}.png`;
-                        } else {
-                            img.alt = sello.nombre;
-                            img.src = sello.imagen_url;
+                    
+                    fetch('http://localhost:8000/index.php?action=sello', {
+                        credentials: 'include'
+                    })
+                    .then(res => res.json())
+                    .then(respuestaSellos => {
+                        contenedorSellos.innerHTML = ''; // Limpiamos el contenedor
+
+                        const listaSellos = respuestaSellos.data || respuestaSellos;
+
+                        if (listaSellos && listaSellos.length > 0) {
+                            listaSellos.forEach(sello => {
+                                const img = document.createElement('img');
+                                img.alt = sello.nombre;
+                                img.src = sello.imagen_url;
+                                img.title = sello.descripcion || sello.nombre;
+                                
+                                // Si la URL está rota o la imagen no existe, la ocultamos suavemente 
+                                // para no arruinar la estética del reverso de la credencial.
+                                img.onerror = function() { 
+                                    this.style.display = 'none'; 
+                                }; 
+                                
+                                contenedorSellos.appendChild(img);
+                            });
                         }
-                        contenedorSellos.appendChild(img);
+                    })
+                    .catch(err => {
+                        console.error('Error de red al consultar los sellos:', err);
+                        // Falla silenciosa: si se cae el servidor de sellos, 
+                        // simplemente no dibujamos nada en el reverso.
                     });
 
                 } else {

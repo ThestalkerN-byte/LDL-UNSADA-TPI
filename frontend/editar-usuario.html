@@ -169,42 +169,61 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('id');
-
+        const userDni = urlParams.get('dni'); 
+        
+        let userId = null; 
         let fotoActual = '';
 
-        if (!userId) {
+        if (!userDni) {
             alert('Usuario no encontrado. Volviendo al listado.');
             window.location.href = 'admin-usuarios.html';
         } else {
 
-            fetch(`http://localhost:8000/index.php?action=user&id=${userId}`)
+            // 1. Buscamos al usuario por su DNI
+            fetch('http://localhost:8000/index.php?action=user', { credentials: 'include' })
                 .then(r => r.json())
-                .then(respUser => {
-                    const usuario = respUser.data;
-                    document.getElementById('nombre').value = usuario.nombre;
-                    document.getElementById('apellido').value = usuario.apellido;
-                    document.getElementById('dni').value = usuario.dni;
-                    document.getElementById('rol').value = usuario.rol;
-                    document.getElementById('email').value = usuario.email;
-                    fotoActual = usuario.foto_perfil || '';
+                .then(respGeneral => {
+                    const listaUsuarios = respGeneral.data || respGeneral;
+                    const usuarioReal = listaUsuarios.find(u => u.dni === userDni);
 
-                    // TODO Back: 'telefono' y 'direccion' no existen todavía en la BD
-                    document.getElementById('telefono').value = '';
-                    document.getElementById('direccion').value = '';
+                    if (usuarioReal) {
+                        userId = usuarioReal.id; 
+                        document.getElementById('nombre').value = usuarioReal.nombre || '';
+                        document.getElementById('apellido').value = usuarioReal.apellido || '';
+                        document.getElementById('dni').value = usuarioReal.dni || '';
+                        document.getElementById('rol').value = usuarioReal.rol || '';
+                        document.getElementById('email').value = usuarioReal.email || '';
+                        fotoActual = usuarioReal.foto_perfil || '';
+                    } else {
+                        console.error("El usuario no existe en la tabla de usuarios.");
+                        alert("Error: El usuario no existe en la base de usuarios.");
+                    }
                 })
-                .catch(err => console.error('Error al cargar usuario:', err));
+                .catch(err => console.error('Error al cargar lista de usuarios:', err));
 
-            fetch(`http://localhost:8000/index.php?action=credential&id=${userId}`)
+            // 2. Traemos la fecha de vencimiento (Buscando también por DNI)
+            fetch(`http://localhost:8000/index.php?action=credential`, { credentials: 'include' })
                 .then(r => r.json())
                 .then(respCred => {
-                    document.getElementById('fechaVencimiento').value = respCred.data.fecha_vencimiento;
+                    const listaCredenciales = respCred.data || respCred;
+                    if (Array.isArray(listaCredenciales)) {
+                        const miCredencial = listaCredenciales.find(c => c.dni === userDni);
+                        if (miCredencial && miCredencial.fecha_vencimiento) {
+                            document.getElementById('fechaVencimiento').value = miCredencial.fecha_vencimiento;
+                        }
+                    }
                 })
                 .catch(err => console.error('Error al cargar credencial:', err));
         }
 
-        document.getElementById('guardarBtn').onclick = () => {
-            const body = {
+        // --- BOTÓN GUARDAR ---
+        document.getElementById('guardarBtn').onclick = async () => {
+            if (!userId) {
+                alert('Aún no se cargó el ID del usuario, espere un segundo.');
+                return;
+            }
+
+            const bodyUsuario = {
                 nombre: document.getElementById('nombre').value,
                 apellido: document.getElementById('apellido').value,
                 email: document.getElementById('email').value,
@@ -214,30 +233,53 @@
 
             const passwordNueva = document.getElementById('password').value;
             if (passwordNueva.trim() !== '') {
-                body.password = passwordNueva;
+                bodyUsuario.password = passwordNueva;
             }
 
-            fetch(`http://localhost:8000/index.php?action=user&id=${userId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            })
-                .then(r => r.json())
-                .then(resp => {
-                    alert(resp.message || 'Usuario actualizado correctamente.');
-                    window.location.href = 'admin-usuarios.html';
-                })
-                .catch(err => {
-                    console.error('Error al guardar:', err);
-                    alert('Error al guardar los cambios.');
+            const bodyCredencial = {
+                fecha_vencimiento: document.getElementById('fechaVencimiento').value,
+                sellos: [] 
+            };
+
+            try {
+                const btn = document.getElementById('guardarBtn');
+                btn.textContent = 'Guardando...';
+                btn.disabled = true;
+
+                const respUser = await fetch(`http://localhost:8000/index.php?action=user&id=${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(bodyUsuario)
                 });
+
+                if (!respUser.ok) throw new Error('Falló al actualizar el usuario');
+
+                const respCred = await fetch(`http://localhost:8000/index.php?action=credential&id=${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(bodyCredencial)
+                });
+
+                if (!respCred.ok) throw new Error('Falló al actualizar la credencial');
+
+                alert('✅ Usuario y credencial actualizados correctamente.');
+                window.location.href = 'admin-usuarios.html';
+
+            } catch (err) {
+                console.error('Error al guardar:', err);
+                alert('❌ Error al guardar los cambios.');
+                document.getElementById('guardarBtn').textContent = 'Guardar Cambios';
+                document.getElementById('guardarBtn').disabled = false;
+            }
         };
 
+        // --- BOTÓN VOLVER ---
         document.getElementById('volverBtn').onclick = () => {
             window.location.href = 'admin-usuarios.html';
         };
     </script>
-
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
