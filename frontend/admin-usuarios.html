@@ -34,7 +34,7 @@
         </div>
 
         <div class="side-menu-footer">
-            <button class="menu-item menu-item-danger" onclick="location.href='login.html'">Cerrar Sesión</button>
+            <button class="menu-item menu-item-danger" id="btnCerrarSesionAdmin">Cerrar Sesión</button>
         </div>
     </nav>
 
@@ -213,8 +213,7 @@
 
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="window.location.href='editar-usuario.html?id=${user.id}'">Editar</button>
-                                <button class="btn btn-outline-custom rounded-pill flex-grow-1 btn-sm py-2">Renovar</button>
-                                <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2">Eliminar</button>
+                                <button class="btn btn-outline-danger-custom rounded-pill flex-grow-1 btn-sm py-2" onclick="abrirModalEliminar(${user.id})">Eliminar</button>
                             </div>
                         </div>
                     `;
@@ -223,13 +222,22 @@
             }
 
             // ── Traer los datos reales de la API ──
-            fetch('http://localhost:8000/index.php?action=credential')
-                .then(r => r.json())
-                .then(respuesta => {
-                    usuarios = respuesta.data;
-                    renderizarUsuarios('');
+            function cargarUsuariosDesdeAPI() {
+                fetch('http://localhost:8000/index.php?action=credential', {
+                    credentials: 'include' // Siempre clave para el admin
                 })
-                .catch(err => console.error('Error al cargar usuarios:', err));
+                    .then(r => r.json())
+                    .then(respuesta => {
+                        usuarios = respuesta.data;
+                        // Mantenemos el texto del buscador por si acababa de buscar algo
+                        const filtroActual = document.getElementById('searchInput').value;
+                        renderizarUsuarios(filtroActual);
+                    })
+                    .catch(err => console.error('Error al cargar usuarios:', err));
+            }
+
+            // Llamada inicial cuando carga la página
+            cargarUsuariosDesdeAPI();
 
             document.getElementById('searchInput').addEventListener('input', (e) => {
                 renderizarUsuarios(e.target.value);
@@ -260,24 +268,79 @@
         btnClose.addEventListener('click', cerrarMenu);
         overlay.addEventListener('click', cerrarMenu);
 
-        // Funciones para el Modal de Eliminar
-        function abrirModalEliminar() {
-    // Busca el modal y le cambia el display para que aparezca centrado
+      // --- LÓGICA DEL MODAL DE ELIMINACIÓN ---
+        let usuarioAEliminarId = null; // Variable global para recordar a quién queremos borrar
+
+        function abrirModalEliminar(id) {
+            usuarioAEliminarId = id; // Guardamos el ID del usuario seleccionado
             document.getElementById('modalEliminar').style.display = 'flex';
         }
 
         function cerrarModalEliminar() {
-    // Vuelve a ocultar el modal
-             document.getElementById('modalEliminar').style.display = 'none';
+            usuarioAEliminarId = null; // Limpiamos la memoria por las dudas
+            document.getElementById('modalEliminar').style.display = 'none';
         }
 
-        function confirmarEliminacion() {
-    // Por ahora solo mostramos un aviso y cerramos el modal.
-    // Más adelante, acá irá el "fetch()" que conectará con el Swagger del backend.
-            alert("Usuario eliminado correctamente (Simulación)");
-            cerrarModalEliminar();
+        async function confirmarEliminacion() {
+            // Si por algún motivo no hay ID, no hacemos nada
+            if (!usuarioAEliminarId) return; 
+
+            try {
+                // Hacemos la petición DELETE a la API de tus compañeros
+                const response = await fetch(`http://localhost:8000/index.php?action=user&id=${usuarioAEliminarId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok || response.status === 200) {
+                    // 1. Cerramos el modal
+                    cerrarModalEliminar();
+                    
+                    // 2. Recargamos la lista automáticamente para ver el cambio
+                    cargarUsuariosDesdeAPI();
+                } else {
+                    alert('Hubo un problema al intentar dar de baja al usuario. Revisá los permisos.');
+                }
+
+            } catch (error) {
+                console.error('Error de red al eliminar:', error);
+                alert('No se pudo conectar con el servidor.');
+            }
         }
 
+    </script>
+
+
+    <script>
+        // --- LÓGICA DE CERRAR SESIÓN DEL ADMINISTRADOR ---
+        const btnCerrarSesionAdmin = document.getElementById('btnCerrarSesionAdmin');
+        
+        if (btnCerrarSesionAdmin) {
+            btnCerrarSesionAdmin.addEventListener('click', async () => {
+                try {
+                    // Le pegamos al endpoint de logout para destruir la sesión real en el servidor
+                    const response = await fetch('http://localhost:8000/index.php?action=logout', {
+                        method: 'POST',
+                        credentials: 'include' 
+                    });
+
+                    // Tanto si responde OK como si hay error, lo sacamos por seguridad
+                    if (response.ok || response.status === 200) {
+                        sessionStorage.removeItem('dniLogueado'); // Limpiamos la memoria
+                        window.location.href = 'login.html';
+                    } else {
+                        console.error('El backend reportó un problema al cerrar sesión.');
+                        sessionStorage.removeItem('dniLogueado');
+                        window.location.href = 'login.html';
+                    }
+
+                } catch (error) {
+                    console.error('Error de red al intentar cerrar sesión:', error);
+                    sessionStorage.removeItem('dniLogueado');
+                    window.location.href = 'login.html';
+                }
+            });
+        }
     </script>
 
     <!-- script CAMPANA  -->

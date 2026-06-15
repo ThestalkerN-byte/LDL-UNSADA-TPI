@@ -9,7 +9,7 @@
 <body>
 
     <header>
-        <button class="btn-header" onclick="location.href='login.html'">Cerrar Sesión</button>
+        <button class="btn-header" id="btnCerrarSesion">Cerrar Sesión</button>
         <div class="header-right">
             <a href="mensajes-usuarios.html">
                 <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
@@ -32,23 +32,23 @@
                     <div class="card-content-front">
                         <div class="photo-area">
                             <img src="perfil.jpg" alt="Foto" class="profile-pic" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'100\'><rect width=\'80\' height=\'100\' fill=\'black\'/><circle cx=\'40\' cy=\'40\' r=\'20\' fill=\'white\'/><path d=\'M 10 100 C 10 70 70 70 70 100\' fill=\'white\'/></svg>'">
-                            <div class="badge-vencida">VENCIDA</div>
+                            <div class="badge-vencida" id="cred-estado" style="display: none;">VENCIDA</div>
                         </div>
                         <div class="user-info">
                             <label>Apellido</label>
-                            <p>CAPPUCCIO</p>
+                            <p id="cred-apellido">Cargando...</p>
                             
                             <label>Nombre</label>
-                            <p>ROCIO ANTONELLA</p>
+                            <p id="cred-nombre">Cargando...</p>
                             
                             <label>DNI</label>
-                            <p>12.345.678</p>
+                            <p id="cred-dni">Cargando...</p>
                             
                             <label>ROL</label>
-                            <p>PASTOR</p>
+                            <p id="cred-rol" style="text-transform: uppercase;">Cargando...</p>
                             
                             <label>Vencimiento</label>
-                            <p>01/05/2026</p>
+                            <p id="cred-vencimiento">Cargando...</p>
                         </div>
                     </div>
                 </div>
@@ -61,19 +61,16 @@
                     <div class="card-content-back">
                         <div class="contact-info">
                             <label>Dirección</label>
-                            <p>San Martín 1520,<br>Baradero, Bs.As</p>
+                            <p id="cred-direccion">-</p>
                             
                             <label>Teléfono</label>
-                            <p>03329 - 258975</p>
+                            <p id="cred-telefono">-</p>
                             
                             <label>Correo electrónico</label>
-                            <p>racappuccio@gmail.com</p>
+                            <p id="cred-email">-</p>
                         </div>
-                        <div class="stamps-area">
-                            <img src="images/aciera.png" alt="ACIERA">
-                            <img src="images/faie.png" alt="FAIE">
-                            <img src="images/fecep.png" alt="FECEP">
-                        </div>
+                        <div class="stamps-area" id="cred-sellos">
+                            </div>
                     </div>
                 </div>
 
@@ -89,13 +86,13 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Lógica de giro de la tarjeta
             const credencial = document.getElementById('credencial');
             const btnFlip = document.getElementById('btnFlip');
 
             if(btnFlip && credencial) {
                 btnFlip.addEventListener('click', () => {
                     credencial.classList.toggle('flipped');
-                    
                     if (credencial.classList.contains('flipped')) {
                         btnFlip.textContent = 'Volver al Frente';
                     } else {
@@ -103,16 +100,125 @@
                     }
                 });
             }
-        });
+
+            // Lógica del botón enviar consulta
+            const botonVolver = document.querySelector('.btn-footer');
+            if(botonVolver) {
+                botonVolver.addEventListener('click', function() {
+                    window.location.href = 'enviar-consulta.html';
+                });
+            }
+
+            // --- CONEXIÓN CON LA API ---
+            fetch('http://localhost:8000/index.php?action=credential', {
+                credentials: 'include' 
+            })
+            .then(r => r.json())
+            .then(respuesta => {
+                // 1. Recuperamos el DNI guardado en el login
+                const miDni = sessionStorage.getItem('dniLogueado');
+                let miCredencial = null;
+
+                // 2. Solo buscamos si la respuesta es exitosa y contiene datos
+                if (respuesta.status === 'success' && respuesta.data && respuesta.data.length > 0) {
+                    miCredencial = respuesta.data.find(cred => cred.dni === miDni);
+                }
+
+                // 3. SI ENCONTRAMOS LA CREDENCIAL: Dibujamos los datos reales
+                if (miCredencial) {
+                    document.getElementById('cred-nombre').textContent = miCredencial.nombre.toUpperCase();
+                    document.getElementById('cred-apellido').textContent = miCredencial.apellido.toUpperCase();
+                    document.getElementById('cred-dni').textContent = miCredencial.dni;
+                    document.getElementById('cred-rol').textContent = miCredencial.rol;
+                    document.getElementById('cred-direccion').innerHTML = miCredencial.direccion || "No registrada";
+                    document.getElementById('cred-telefono').textContent = miCredencial.telefono || "No registrado";
+                    document.getElementById('cred-email').textContent = miCredencial.email || "No registrado";
+                    
+                    const [anio, mes, dia] = miCredencial.fecha_vencimiento.split('-');
+                    document.getElementById('cred-vencimiento').textContent = `${dia}/${mes}/${anio}`;
+
+                    const badgeEstado = document.getElementById('cred-estado');
+                    if (miCredencial.estado !== 'ACTIVA') {
+                        badgeEstado.textContent = miCredencial.estado;
+                        badgeEstado.style.display = 'block';
+                    } else {
+                        badgeEstado.style.display = 'none';
+                    }
+
+                    const contenedorSellos = document.getElementById('cred-sellos');
+                    contenedorSellos.innerHTML = '';
+                    miCredencial.sellos.forEach(sello => {
+                        const img = document.createElement('img');
+                        if (typeof sello === 'string') {
+                            img.alt = sello;
+                            img.src = `images/${sello.toLowerCase()}.png`;
+                        } else {
+                            img.alt = sello.nombre;
+                            img.src = sello.imagen_url;
+                        }
+                        contenedorSellos.appendChild(img);
+                    });
+
+                } else {
+                    // 4. SI LA LISTA VINO VACÍA O NO SE ENCONTRÓ TU DNI: Mostramos el estado en trámite
+                    document.getElementById('cred-nombre').textContent = "EN TRÁMITE";
+                    document.getElementById('cred-apellido').textContent = "EN TRÁMITE";
+                    document.getElementById('cred-dni').textContent = miDni || "No detectado";
+                    document.getElementById('cred-rol').textContent = "USER";
+                    document.getElementById('cred-vencimiento').textContent = "--/--/----";
+                    document.getElementById('cred-direccion').innerHTML = "-";
+                    document.getElementById('cred-telefono').textContent = "-";
+                    document.getElementById('cred-email').textContent = "-";
+                    
+                    const badgeEstado = document.getElementById('cred-estado');
+                    badgeEstado.textContent = "NO EMITIDA";
+                    badgeEstado.style.display = 'block';
+                    badgeEstado.style.backgroundColor = '#6c757d'; 
+                    
+                    const contenedorSellos = document.getElementById('cred-sellos');
+                    contenedorSellos.innerHTML = '<p class="small text-muted text-center">Sin sellos asignados</p>';
+                }
+            })
+            .catch(err => {
+                console.error('Error al cargar la credencial:', err);
+                document.getElementById('cred-nombre').textContent = "ERROR";
+                document.getElementById('cred-apellido').textContent = "DE CONEXIÓN";
+            });
+
+            // --- LÓGICA DE CERRAR SESIÓN ---
+            const btnCerrarSesion = document.getElementById('btnCerrarSesion');
+            if (btnCerrarSesion) {
+                btnCerrarSesion.addEventListener('click', async () => {
+                    try {
+                        // 1. Le avisamos al backend que destruya la cookie/sesión
+                        const response = await fetch('http://localhost:8000/index.php?action=logout', {
+                            method: 'POST',
+                            credentials: 'include' // Fundamental para que el back sepa qué sesión borrar
+                        });
+
+                        // 2. Si el backend responde bien (o incluso si da error, por seguridad lo sacamos)
+                        if (response.ok || response.status === 200) {
+                            // Borramos el DNI de la memoria del navegador
+                            sessionStorage.removeItem('dniLogueado');
+                            
+                            // Lo pateamos al login
+                            window.location.href = 'login.html';
+                        } else {
+                            console.error('El backend reportó un problema al cerrar sesión.');
+                            sessionStorage.removeItem('dniLogueado');
+                            window.location.href = 'login.html';
+                        }
+
+                    } catch (error) {
+                        console.error('Error de red al intentar cerrar sesión:', error);
+                        // En caso de que se haya caído el servidor, lo sacamos igual por las dudas
+                        sessionStorage.removeItem('dniLogueado');
+                        window.location.href = 'login.html';
+                    }
+                });
+            }
+
+        }); 
     </script>
-    <script>document.addEventListener('DOMContentLoaded', function() {
-    const botonVolver = document.querySelector('.btn-footer');
-    
-    if(botonVolver) {
-        botonVolver.addEventListener('click', function() {
-            window.location.href = 'enviar-consulta.html';
-        });
-    }
-});</script>
 </body>
 </html>

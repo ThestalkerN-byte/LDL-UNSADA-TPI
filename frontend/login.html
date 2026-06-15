@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 </head>
 <body>
     <div class="container vh-100 d-flex justify-content-center align-items-center">
@@ -21,7 +22,12 @@
                 </div>
                 <div class="mb-3">
                     <label for="inputPassword" class="form-label">Contraseña</label>
-                    <input type="password" class="form-control" id="inputPassword"  placeholder="Ingrese...">
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="inputPassword" placeholder="Ingrese..." style="border-right: none;">
+                        <button class="btn btn-outline-secondary bg-white" type="button" id="btnTogglePassword" style="border-left: none; border-color: #dee2e6;">
+                            <i class="bi bi-eye-fill" id="toggleIcon" style="color: #6c757d;"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="checkbox-container">
                     <div class="form-check">
@@ -29,8 +35,10 @@
                         <label class="form-check-label" for="rememberCheck">Recuérdame</label>
                     </div>
                 </div>  
+                
+                <div id="mensaje-error" class="text-danger text-center small mb-3 fw-bold d-none"></div>
+                
                 <div class="d-grid gap-2 col-6 mx-auto">
-                    <!--id="btn-login" para simular el login. Sacar este parte al integrar con el back-->
                     <button class="btn btn-primary" id="btn-login" type="button" style="background-color: #0B2A4A; border: none; border-radius: 25px;">Ingresar</button>
                 </div>
                  <div class="mt-3 text-center">
@@ -39,17 +47,91 @@
             </form>
         </div>
     </div>
+
+    <script>
+        let timerError;
+
+        document.getElementById('btn-login').addEventListener('click', async function(event) {
+            event.preventDefault(); 
+
+            const usuario = document.getElementById('inputUserDni').value;
+            const password = document.getElementById('inputPassword').value;
+            const divError = document.getElementById('mensaje-error');
+            
+            function mostrarError(mensaje) {
+                divError.textContent = mensaje;
+                divError.classList.remove('d-none'); 
+                clearTimeout(timerError);
+                timerError = setTimeout(() => {
+                    divError.classList.add('d-none');
+                }, 3000);
+            }
+
+            if (!usuario || !password) {
+                mostrarError("Por favor, completá tu usuario y contraseña.");
+                return;
+            }
+
+            const datosLogin = {
+                identificador: usuario,
+                password: password
+            };
+
+            try {
+                const response = await fetch('http://localhost:8000/index.php?action=login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', 
+                    body: JSON.stringify(datosLogin)
+                });
+
+                if (response.status === 200) {
+                    // 1. "Abrimos" el paquete de datos (JSON) que nos devolvió el backend
+                    const respuestaBackend = await response.json();
+                    
+                    // 2. Buscamos qué rol tiene la persona que acaba de entrar.
+                    // (Asumo que el backend manda el rol adentro de 'data.rol', si lo manda distinto, hay que ajustar esta línea)
+                    const rolUsuario = respuestaBackend.data.rol;
+
+                    sessionStorage.setItem('dniLogueado', usuario);
+
+                    // 3. Hacemos el desvío automático según el rol
+                    if (rolUsuario === 'admin') {
+                        window.location.href = 'admin-usuarios.html';
+                    } else {
+                        // Si es 'user' (o cualquier otra cosa), va a su credencial
+                        window.location.href = 'credencial.html';
+                    }
+
+                } else if (response.status === 401) {
+                    mostrarError('Usuario o contraseña incorrectos. Por favor, intentá de nuevo.');
+                } else {
+                    mostrarError(`Ocurrió un error inesperado (Código: ${response.status}).`);
+                }
+
+            } catch (error) {
+                console.error('Error de red:', error);
+                mostrarError('No se pudo conectar con el servidor. Revisá que el backend esté encendido.');
+            }
+        });
+
+        // --- Lógica para mostrar/ocultar la contraseña ---
+        document.getElementById('btnTogglePassword').addEventListener('click', function() {
+            const passwordInput = document.getElementById('inputPassword');
+            const toggleIcon = document.getElementById('toggleIcon');
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.classList.remove('bi-eye-fill');
+                toggleIcon.classList.add('bi-eye-slash-fill');
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.classList.remove('bi-eye-slash-fill');
+                toggleIcon.classList.add('bi-eye-fill');
+            }
+        });
+    </script>
 </body>
 </html>
-
-<script>
-    document.getElementById('btn-login').addEventListener('click', function() {
-        let usuario = document.getElementById('inputUserDni').value;
-
-        if (usuario === 'admin') {
-            window.location.href = 'admin-usuarios.html';
-        } else {
-            window.location.href = 'credencial.html';
-        }
-    });
-</script>
