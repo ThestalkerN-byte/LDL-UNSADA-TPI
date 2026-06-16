@@ -184,6 +184,7 @@ class MessageController {
             'id'              => $m->getId(),
             'id_usuario'      => $m->getUser()->getId(),
             'usuario_nombre'  => $m->getUser()->getNombre() . ' ' . $m->getUser()->getApellido(),
+            'usuario_dni'     => $m->getUser()->getDni(),
             'contenido'       => $m->getContenido(),
             'fecha'           => $m->getFecha()->format('Y-m-d H:i:s'),
             'respuesta'       => $m->getRespuesta(),

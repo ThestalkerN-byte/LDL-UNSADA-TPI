@@ -131,7 +131,12 @@ class UserController {
         $user->setEmail(trim($data['email']));
         $user->setRol(trim($data['rol']));
         $user->setEstado(true);
-        $user->setFotoPerfil($data['foto_perfil'] ?? null);
+        
+        $fotoPath = $this->handleFotoPerfil($data['foto_perfil'] ?? null, trim($data['usuario']));
+        $user->setFotoPerfil($fotoPath);
+
+        $user->setTelefono($data['telefono'] ?? null);
+        $user->setDireccion($data['direccion'] ?? null);
 
         $this->em->persist($user);
 
@@ -194,7 +199,14 @@ class UserController {
             $user->setRol(trim($data['rol']));
         }
         if (isset($data['foto_perfil'])) {
-            $user->setFotoPerfil($data['foto_perfil']);
+            $fotoPath = $this->handleFotoPerfil($data['foto_perfil'], $user->getUsuario());
+            $user->setFotoPerfil($fotoPath);
+        }
+        if (isset($data['telefono'])) {
+            $user->setTelefono($data['telefono']);
+        }
+        if (isset($data['direccion'])) {
+            $user->setDireccion($data['direccion']);
         }
         if (!empty($data['password'])) {
             $user->setPassword(password_hash($data['password'], PASSWORD_BCRYPT));
@@ -210,32 +222,31 @@ class UserController {
 
     /**
      * DELETE ?action=user&id={id}
-     * Realiza la baja lógica (estado = false) (RF08 / CU3 A1).
+     * Realiza el borrado físico del usuario (RF08 / CU3 A1).
      */
     private function delete(int $id): void {
         $user = $this->em->getRepository(User::class)->find($id);
 
-        if (!$user || !$user->isEstado()) {
-            $this->responder(404, 'error', 'Usuario no encontrado o ya inactivo.');
+        if (!$user) {
+            $this->responder(404, 'error', 'Usuario no encontrado.');
             return;
         }
 
-        // Baja lógica
-        $user->setEstado(false);
-
-        // Desactivar también las credenciales activas del usuario
+        // Eliminar también las credenciales del usuario
         $credentialRepo = $this->em->getRepository(\App\Entity\Credential::class);
-        $credenciales = $credentialRepo->findBy(['usuario' => $user, 'esActiva' => true]);
+        $credenciales = $credentialRepo->findBy(['usuario' => $user]);
         foreach ($credenciales as $cred) {
-            $cred->setEsActiva(false);
+            $this->em->remove($cred);
         }
 
-        // Registrar acción en Historial
-        $this->registrarHistorial("Baja de usuario: " . $user->getUsuario());
+        // Registrar acción en Historial antes de eliminar
+        $this->registrarHistorial("Eliminación física de usuario: " . $user->getUsuario());
 
+        // Borrado físico del usuario
+        $this->em->remove($user);
         $this->em->flush();
 
-        $this->responder(200, 'success', 'Usuario dado de baja correctamente.');
+        $this->responder(200, 'success', 'Usuario eliminado correctamente.');
     }
 
     /**
@@ -278,6 +289,8 @@ class UserController {
             'rol'         => $u->getRol(),
             'estado'      => $u->isEstado(),
             'foto_perfil' => $u->getFotoPerfil(),
+            'telefono'    => $u->getTelefono(),
+            'direccion'  => $u->getDireccion(),
         ];
     }
 
@@ -293,5 +306,57 @@ class UserController {
             'data'    => $data ?? [],
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * Procesa la foto de perfil en base64, la guarda en frontend/images/ y retorna la ruta relativa.
+     */
+    private function handleFotoPerfil(?string $base64Data, string $username): ?string {
+        if (empty($base64Data)) {
+            return null;
+        }
+        
+        // Si ya es una ruta relativa existente en el servidor, no es base64, se mantiene igual
+        if (strpos($base64Data, 'data:image/') !== 0) {
+            return $base64Data;
+        }
+        
+        // Decodificar el base64 de la imagen
+        if (preg_match('/^data:image\/(\w+);base64,/', $base64Data, $type)) {
+            $data = substr($base64Data, strpos($base64Data, ',') + 1);
+            $ext = strtolower($type[1]);
+            
+            if (!in_array($ext, ['jpg', 'jpeg', 'gif', 'png'])) {
+                return null;
+            }
+            $data = base64_decode($data);
+            if ($data === false) {
+                return null;
+            }
+        } else {
+            return null;
+        }
+
+        $dir = __DIR__ . '/../../frontend/images';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        // Generar un nombre único basado en el usuario para evitar cacheo o colisiones
+        $filename = 'perfil_' . $username . '_' . time() . '.' . $ext;
+        $filepath = $dir . '/' . $filename;
+
+        // Eliminar fotos de perfil anteriores de este mismo usuario
+        $oldFiles = glob($dir . '/perfil_' . $username . '_*');
+        if ($oldFiles) {
+            foreach ($oldFiles as $oldFile) {
+                @unlink($oldFile);
+            }
+        }
+
+        if (file_put_contents($filepath, $data) !== false) {
+            return 'images/' . $filename;
+        }
+        return null;
     }
 }

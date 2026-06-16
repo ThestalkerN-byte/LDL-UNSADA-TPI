@@ -9,6 +9,7 @@ use App\Enum\CredentialStatus;
  */
 class CredentialDTO {
     private int $id;
+    private int $idUsuario;
     private string $nombre;
     private string $apellido;
     private ?string $dni;
@@ -19,6 +20,7 @@ class CredentialDTO {
 
     public function __construct(
         int $id,
+        int $idUsuario,
         string $nombre,
         string $apellido,
         ?string $dni,
@@ -28,6 +30,7 @@ class CredentialDTO {
         ?array $sellos = []
     ) {
         $this->id = $id;
+        $this->idUsuario = $idUsuario;
         $this->nombre = $nombre;
         $this->apellido = $apellido;
         $this->dni = $dni;
@@ -39,6 +42,7 @@ class CredentialDTO {
 
     // Getters y setters para acceder a los datos
     public function getId(): int { return $this->id; }
+    public function getIdUsuario(): int { return $this->idUsuario; }
     public function getNombre(): string { return $this->nombre; }
     public function getApellido(): string { return $this->apellido; }
     public function getDni(): ?string { return $this->dni; }

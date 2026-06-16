@@ -21,7 +21,14 @@
     </header>
 
     <main>
-        <div class="card-container" id="credencial">
+        <!-- Spinner de carga -->
+        <div id="loadingSpinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 60px 0; gap: 16px;">
+            <div style="width:48px; height:48px; border:5px solid #dde; border-top-color:#0B2A4A; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+            <p style="color:#0B2A4A; font-weight:600; margin:0;">Cargando credencial...</p>
+        </div>
+        <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+
+        <div class="card-container" id="credencial" style="visibility:hidden;">
             <div class="card-flipper">
                 
                 <div class="card-face card-front">
@@ -31,24 +38,24 @@
                     </div>
                     <div class="card-content-front">
                         <div class="photo-area">
-                            <img src="perfil.jpg" alt="Foto" class="profile-pic" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'100\'><rect width=\'80\' height=\'100\' fill=\'black\'/><circle cx=\'40\' cy=\'40\' r=\'20\' fill=\'white\'/><path d=\'M 10 100 C 10 70 70 70 70 100\' fill=\'white\'/></svg>'">
-                            <div class="badge-vencida">VENCIDA</div>
+                            <img src="" alt="Foto" class="profile-pic" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'80\' height=\'100\'><rect width=\'80\' height=\'100\' fill=\'black\'/><circle cx=\'40\' cy=\'40\' r=\'20\' fill=\'white\'/><path d=\'M 10 100 C 10 70 70 70 70 100\' fill=\'white\'/></svg>'">
+                            <div class="badge-vencida" style="display:none;">VENCIDA</div>
                         </div>
                         <div class="user-info">
                             <label>Apellido</label>
-                            <p>CAPPUCCIO</p>
+                            <p></p>
                             
                             <label>Nombre</label>
-                            <p>ROCIO ANTONELLA</p>
+                            <p></p>
                             
                             <label>DNI</label>
-                            <p>12.345.678</p>
+                            <p></p>
                             
                             <label>ROL</label>
-                            <p>PASTOR</p>
+                            <p></p>
                             
                             <label>Vencimiento</label>
-                            <p>01/05/2026</p>
+                            <p></p>
                         </div>
                     </div>
                 </div>
@@ -61,26 +68,22 @@
                     <div class="card-content-back">
                         <div class="contact-info">
                             <label>Dirección</label>
-                            <p>San Martín 1520,<br>Baradero, Bs.As</p>
+                            <p></p>
                             
                             <label>Teléfono</label>
-                            <p>03329 - 258975</p>
+                            <p></p>
                             
                             <label>Correo electrónico</label>
-                            <p>racappuccio@gmail.com</p>
+                            <p></p>
                         </div>
-                        <div class="stamps-area">
-                            <img src="images/aciera.png" alt="ACIERA">
-                            <img src="images/faie.png" alt="FAIE">
-                            <img src="images/fecep.png" alt="FECEP">
-                        </div>
+                        <div class="stamps-area"></div>
                     </div>
                 </div>
 
             </div>
         </div>
 
-        <button class="btn-action" id="btnFlip">Ver Reverso y Sellos</button>
+        <button class="btn-action" id="btnFlip" style="display:none;">Ver Reverso y Sellos</button>
     </main>
 
     <footer>
@@ -88,7 +91,94 @@
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Cargar datos del usuario desde sessionStorage
+            const usuarioData = sessionStorage.getItem('usuario');
+            if (!usuarioData) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const usuario = JSON.parse(usuarioData);
+
+            const spinner   = document.getElementById('loadingSpinner');
+            const cardEl    = document.getElementById('credencial');
+            const btnFlipEl = document.getElementById('btnFlip');
+
+            try {
+                // Cargar credencial del usuario desde el backend (solo la suya)
+                const response = await fetch(`../index.php?action=credential&id_usuario=${usuario.id}`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    const credencial = result.data[0] ?? null;
+                    if (credencial) { credencial.id_usuario = credencial.id_usuario ?? usuario.id; }
+                    
+                    if (credencial) {
+                        // Actualizar foto de perfil si existe
+                        document.querySelector('.profile-pic').src = usuario.foto_perfil || '';
+
+                        // Actualizar datos de la credencial
+                        document.querySelector('.user-info p:nth-child(2)').textContent = usuario.apellido?.toUpperCase() || '';
+                        document.querySelector('.user-info p:nth-child(4)').textContent = usuario.nombre?.toUpperCase() || '';
+                        document.querySelector('.user-info p:nth-child(6)').textContent = usuario.dni || '';
+                        document.querySelector('.user-info p:nth-child(8)').textContent = usuario.rol?.toUpperCase() || '';
+                        
+                        const fechaVenc = new Date(credencial.fecha_vencimiento);
+                        document.querySelector('.user-info p:nth-child(10)').textContent = fechaVenc.toLocaleDateString('es-AR');
+
+                        // Actualizar reverso
+                        document.querySelector('.contact-info p:nth-child(2)').innerHTML = (usuario.direccion || 'No especificada').replace(',', '<br>');
+                        document.querySelector('.contact-info p:nth-child(4)').textContent = usuario.telefono || 'No especificado';
+                        document.querySelector('.contact-info p:nth-child(6)').textContent = usuario.email || '';
+
+                        // Actualizar sellos
+                        const stampsArea = document.querySelector('.stamps-area');
+                        stampsArea.innerHTML = '';
+                        
+                        if (credencial.sellos && credencial.sellos.length > 0) {
+                            credencial.sellos.forEach(sello => {
+                                const img = document.createElement('img');
+                                img.src = sello.src || '';
+                                img.alt = sello.nombre || '';
+                                stampsArea.appendChild(img);
+                            });
+                        } else {
+                            stampsArea.innerHTML = '<p style="font-size: 12px; color: #666;">Sin sellos asignados</p>';
+                        }
+
+                        // Verificar si está vencida
+                        const hoy = new Date();
+                        hoy.setHours(0, 0, 0, 0);
+                        const fechaVencimiento = new Date(credencial.fecha_vencimiento);
+                        fechaVencimiento.setHours(0, 0, 0, 0);
+                        
+                        const badgeVencida = document.querySelector('.badge-vencida');
+                        if (fechaVencimiento < hoy) {
+                            badgeVencida.style.display = 'block';
+                        } else {
+                            badgeVencida.style.display = 'none';
+                        }
+                    } else {
+                        // No se encontró credencial para este usuario
+                        document.querySelector('.user-info p:nth-child(2)').textContent = usuario.apellido?.toUpperCase() || '';
+                        document.querySelector('.user-info p:nth-child(4)').textContent = usuario.nombre?.toUpperCase() || '';
+                        document.querySelector('.user-info p:nth-child(6)').textContent = usuario.dni || '';
+                        document.querySelector('.user-info p:nth-child(8)').textContent = usuario.rol?.toUpperCase() || '';
+                        document.querySelector('.user-info p:nth-child(10)').textContent = 'Sin credencial';
+                        document.querySelector('.stamps-area').innerHTML = '<p style="font-size: 12px; color: #666;">Sin sellos asignados</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error al cargar credencial:', error);
+            } finally {
+                // Ocultar spinner y mostrar la credencial real (sin importar si hubo error)
+                spinner.style.display = 'none';
+                cardEl.style.visibility = 'visible';
+                btnFlipEl.style.display = '';
+            }
+
+            // Funcionalidad de flip
             const credencial = document.getElementById('credencial');
             const btnFlip = document.getElementById('btnFlip');
 

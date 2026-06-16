@@ -32,31 +32,25 @@ class SelloController {
             mkdir(dirname($this->filePath), 0755, true);
         }
         if (!file_exists($this->filePath)) {
-            // Sellos predefinidos iniciales con logos reales
+            // Sellos predefinidos iniciales con estructura compatible con frontend
             $default = [
                 [
-                    'id'         => 1,
-                    'nombre'     => 'UNSADA',
-                    'imagen_url' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/UNSADA_logo.png/200px-UNSADA_logo.png',
-                    'descripcion'=> 'Universidad Nacional de San Antonio de Areco'
+                    'id'      => 1,
+                    'nombre'  => 'ACIERA',
+                    'src'     => 'images/aciera.png',
+                    'visible' => true
                 ],
                 [
-                    'id'         => 2,
-                    'nombre'     => 'FAIF',
-                    'imagen_url' => 'https://faif.com.ar/wp-content/uploads/2020/06/faif-logo.png',
-                    'descripcion'=> 'Federación Argentina de Instituciones de Fútbol'
+                    'id'      => 2,
+                    'nombre'  => 'FECEP',
+                    'src'     => 'images/fecep.png',
+                    'visible' => true
                 ],
                 [
-                    'id'         => 3,
-                    'nombre'     => 'ADESA',
-                    'imagen_url' => 'https://adesa.org.ar/wp-content/uploads/2021/05/ADESA-logo.png',
-                    'descripcion'=> 'Asociación de Entidades de Seguridad Argentina'
-                ],
-                [
-                    'id'         => 4,
-                    'nombre'     => 'SACRA',
-                    'imagen_url' => 'https://sacra.com.ar/logo.png',
-                    'descripcion'=> 'Sociedad Argentina de Criadores y Rematadores'
+                    'id'      => 3,
+                    'nombre'  => 'FAIE',
+                    'src'     => 'images/faie.png',
+                    'visible' => true
                 ],
             ];
             file_put_contents($this->filePath, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
@@ -95,10 +89,10 @@ class SelloController {
         $nuevoId = count($sellos) > 0 ? max(array_column($sellos, 'id')) + 1 : 1;
 
         $nuevo = [
-            'id'          => $nuevoId,
-            'nombre'      => trim($data['nombre']),
-            'imagen_url'  => trim($data['imagen_url'] ?? ''),
-            'descripcion' => trim($data['descripcion'] ?? ''),
+            'id'      => $nuevoId,
+            'nombre'  => trim($data['nombre']),
+            'src'     => trim($data['src'] ?? ''),
+            'visible' => isset($data['visible']) ? (bool)$data['visible'] : true,
         ];
 
         $sellos[] = $nuevo;
@@ -119,9 +113,9 @@ class SelloController {
 
         $data = json_decode(file_get_contents('php://input'), true);
 
-        if (isset($data['nombre']))      $sellos[$idx]['nombre']      = trim($data['nombre']);
-        if (isset($data['imagen_url']))  $sellos[$idx]['imagen_url']  = trim($data['imagen_url']);
-        if (isset($data['descripcion'])) $sellos[$idx]['descripcion'] = trim($data['descripcion']);
+        if (isset($data['nombre']))  $sellos[$idx]['nombre']  = trim($data['nombre']);
+        if (isset($data['src']))     $sellos[$idx]['src']     = trim($data['src']);
+        if (isset($data['visible'])) $sellos[$idx]['visible'] = (bool)$data['visible'];
 
         $this->guardarSellos($sellos);
         $this->responder(200, 'success', 'Sello actualizado.', $sellos[$idx]);

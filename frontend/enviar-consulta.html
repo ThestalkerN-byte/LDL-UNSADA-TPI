@@ -48,14 +48,61 @@
         </div>
 
     </div>
-<script>document.addEventListener('DOMContentLoaded', function() {
-    const botonVolver = document.querySelector('.btn-admin-secondary.w-100');
-    
-    if(botonVolver) {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Control de acceso - Redirigir si no está logueado
+    const usuarioData = sessionStorage.getItem('usuario');
+    if (!usuarioData) {
+        window.location.href = 'login.html';
+        return;
+    }
+    const usuario = JSON.parse(usuarioData);
+
+    const form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const mensajeInput = document.getElementById('mensajeInput');
+            const mensaje = mensajeInput.value.trim();
+            
+            if (!mensaje) {
+                alert('⚠️ Por favor escribe tu consulta.');
+                return;
+            }
+
+            try {
+                const response = await fetch('../index.php?action=message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contenido: mensaje,
+                        id_usuario: usuario.id
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert('✅ Tu consulta ha sido enviada exitosamente.');
+                    window.location.href = 'mensajes-usuarios.html';
+                } else {
+                    alert(`❌ Error: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Error al enviar la consulta:', error);
+                alert('❌ Error al enviar la consulta. Por favor intente nuevamente.');
+            }
+        });
+    }
+
+    const botonVolver = document.querySelector('.btn-admin-secondary');
+    if (botonVolver) {
         botonVolver.addEventListener('click', function() {
             window.location.href = 'credencial.html';
         });
     }
-});</script>
+});
+</script>
 </body>
 </html>

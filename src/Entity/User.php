@@ -41,6 +41,12 @@ class User {
     #[ORM\Column(name: "foto_perfil", type: "string", length: 255, nullable: true)]
     private ?string $fotoPerfil = null;
 
+    #[ORM\Column(type: "string", length: 50, nullable: true)]
+    private ?string $telefono = null;
+
+    #[ORM\Column(type: "string", length: 255, nullable: true)]
+    private ?string $direccion = null;
+
     // --- Getters y setters ---
     public function getId(): int { return $this->id; }
 
@@ -70,4 +76,10 @@ class User {
 
     public function getFotoPerfil(): ?string { return $this->fotoPerfil; }
     public function setFotoPerfil(?string $fotoPerfil): void { $this->fotoPerfil = $fotoPerfil; }
+
+    public function getTelefono(): ?string { return $this->telefono; }
+    public function setTelefono(?string $telefono): void { $this->telefono = $telefono; }
+
+    public function getDireccion(): ?string { return $this->direccion; }
+    public function setDireccion(?string $direccion): void { $this->direccion = $direccion; }
 }

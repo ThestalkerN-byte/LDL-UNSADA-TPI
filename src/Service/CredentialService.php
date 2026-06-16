@@ -67,6 +67,7 @@ class CredentialService {
 
         return new CredentialDTO(
             $credencial->getId(),
+            $user->getId(),
             $user->getNombre(),
             $user->getApellido(),
             $estaVencida ? null : $user->getDni(),

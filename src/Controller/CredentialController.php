@@ -80,7 +80,13 @@ class CredentialController {
      * mapeadas al DTO (con datos sensibles ocultados si están vencidas).
      */
     private function index(): void {
-        $credenciales = $this->credentialRepository->findActivas();
+        $idUsuario = isset($_GET['id_usuario']) ? (int)$_GET['id_usuario'] : null;
+
+        if ($idUsuario) {
+            $credenciales = $this->credentialRepository->findActivasByUsuario($idUsuario);
+        } else {
+            $credenciales = $this->credentialRepository->findActivas();
+        }
 
         $dtos = array_map(
             fn($cred) => $this->serializeDTO($this->credentialService->mapToDTO($cred)),
@@ -344,6 +350,7 @@ class CredentialController {
     private function serializeDTO(\App\DTO\CredentialDTO $dto): array {
         return [
             'id'               => $dto->getId(),
+            'id_usuario'       => $dto->getIdUsuario(),
             'nombre'           => $dto->getNombre(),
             'apellido'         => $dto->getApellido(),
             'dni'              => $dto->getDni(),

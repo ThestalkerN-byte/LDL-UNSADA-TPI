@@ -15,7 +15,23 @@ class CredentialRepository extends EntityRepository {
      */
     public function findActivas(): array {
         return $this->createQueryBuilder('c')
+            ->select('c', 'u')
+            ->join('c.usuario', 'u')
             ->where('c.esActiva = true')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Buscar credenciales activas de un usuario específico.
+     */
+    public function findActivasByUsuario(int $idUsuario): array {
+        return $this->createQueryBuilder('c')
+            ->select('c', 'u')
+            ->join('c.usuario', 'u')
+            ->where('c.esActiva = true')
+            ->andWhere('u.id = :idUsuario')
+            ->setParameter('idUsuario', $idUsuario)
             ->getQuery()
             ->getResult();
     }
@@ -27,6 +43,8 @@ class CredentialRepository extends EntityRepository {
         $hoy = new \DateTimeImmutable('today');
         $fechaLimite = $hoy->add(new \DateInterval("P{$dias}D"));
         return $this->createQueryBuilder('c')
+            ->select('c', 'u')
+            ->join('c.usuario', 'u')
             ->where('c.fechaVencimiento >= :hoy')
             ->andWhere('c.fechaVencimiento <= :fecha')
             ->andWhere('c.esActiva = true')

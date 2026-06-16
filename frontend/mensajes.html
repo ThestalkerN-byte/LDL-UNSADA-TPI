@@ -72,52 +72,92 @@
 
         <h2 class="fw-bold text-center mb-4" style="color: #0B2A4A;">MENSAJES</h2>
 
-        <div id="mensajesList"></div>
+        <div id="mensajesList">
+            <div id="loadingMsgSpinner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 0; gap:16px;">
+                <div style="width:44px;height:44px;border:5px solid #dde;border-top-color:#0B2A4A;border-radius:50%;animation:spin3 0.8s linear infinite;"></div>
+                <p style="color:#0B2A4A;font-weight:600;margin:0;">Cargando mensajes...</p>
+            </div>
+        </div>
+        <style>@keyframes spin3{to{transform:rotate(360deg);}}</style>
 
     </div>
 
     <script>
-        const mensajes = [
-            {
-                id: 1,
-                nombre: 'Lautaro Vienny',
-                dni: '41.689.013',
-                hora: 'Hoy, 19:30 hs',
-                texto: 'Hola, acabo de cambiar mi número de celular. Podrían actualizarlo en mi perfil al 03329-123456? Gracias.'
-            },
-            {
-                id: 2,
-                nombre: 'Rocio Cappuccio',
-                dni: '25.129.073',
-                hora: 'Jueves 14, 14:21 hs',
-                texto: 'Hola, acabo de cambiar mi domicilio. Podrían actualizarlo en mi perfil a Anchorena 2311? Gracias.'
+        // Control de acceso para administradores
+        const usuarioData = sessionStorage.getItem('usuario');
+        if (!usuarioData) {
+            window.location.href = 'login.html';
+        } else {
+            const usuarioObj = JSON.parse(usuarioData);
+            if (usuarioObj.rol !== 'admin') {
+                window.location.href = 'credencial.html';
+            } else {
+                // Actualizar nombre en menú lateral
+                document.addEventListener('DOMContentLoaded', () => {
+                    const sideMenuName = document.querySelector('.side-menu-info .name');
+                    if (sideMenuName) {
+                        sideMenuName.textContent = usuarioObj.nombre;
+                    }
+                });
             }
-        ];
+        }
+
+        let mensajes = [];
+
+        // Cargar mensajes desde el backend
+        async function cargarMensajes() {
+            try {
+                const response = await fetch('../index.php?action=message');
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    mensajes = result.data;
+                    renderizarMensajes();
+                    document.getElementById('loadingMsgSpinner')?.remove();
+                }
+            } catch (error) {
+                console.error('Error al cargar mensajes:', error);
+            }
+        }
+
+        function formatearFecha(fecha) {
+            const date = new Date(fecha);
+            return date.toLocaleString('es-AR', { 
+                day: 'numeric', 
+                month: 'numeric', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
 
         function renderizarMensajes() {
             const container = document.getElementById('mensajesList');
             container.innerHTML = '';
 
+            if (mensajes.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted mt-5">No hay mensajes</div>';
+                return;
+            }
+
             mensajes.forEach(msg => {
                 const card = document.createElement('div');
                 card.className = 'card bg-white shadow-sm mb-3 rounded-3';
                 card.style.border = '1.5px solid #DEE2E6';
-                card.innerHTML = `
-                    <div class="card-body p-3">
-
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                            <div>
-                                <h6 class="fw-bold mb-0" style="color: #0B2A4A;">${msg.nombre}</h6>
-                                <small class="text-muted">DNI: ${msg.dni}</small>
+                
+                let answerAreaHtml = '';
+                if (msg.respuesta) {
+                    answerAreaHtml = `
+                        <div class="rounded-3 px-3 py-2 mt-2 mb-1"
+                             style="background-color: #E6F4EA; font-size: 0.9rem; color: #137333; border: 1px solid #CEEAD6;">
+                            <strong>Respuesta del admin:</strong> "${msg.respuesta}"
+                            <div class="text-end mt-1">
+                                <small style="font-size: 0.75rem; color: #5f6368;">Respondido el: ${formatearFecha(msg.fecha_respuesta)}</small>
                             </div>
-                            <small class="text-muted">${msg.hora}</small>
                         </div>
-
-                        <div class="rounded-3 px-3 py-2 mt-2 mb-3"
-                             style="background-color: #D9EAFF; font-size: 0.9rem; color: #1e293b;">
-                            "${msg.texto}"
-                        </div>
-
+                    `;
+                } else {
+                    answerAreaHtml = `
                         <textarea class="form-control rounded-3 mb-2"
                                   rows="2"
                                   placeholder="Escribe tu respuesta..."
@@ -131,6 +171,26 @@
                                 Enviar Respuesta
                             </button>
                         </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="card-body p-3">
+
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <h6 class="fw-bold mb-0" style="color: #0B2A4A;">${msg.usuario_nombre || 'Usuario'}</h6>
+                                <small class="text-muted">DNI: ${msg.usuario_dni || 'N/A'}</small>
+                            </div>
+                            <small class="text-muted">${formatearFecha(msg.fecha)}</small>
+                        </div>
+
+                        <div class="rounded-3 px-3 py-2 mt-2 mb-3"
+                             style="background-color: #D9EAFF; font-size: 0.9rem; color: #1e293b;">
+                            "${msg.contenido || ''}"
+                        </div>
+
+                        ${answerAreaHtml}
 
                     </div>
                 `;
@@ -138,17 +198,37 @@
             });
         }
 
-        function enviarRespuesta(id) {
+        async function enviarRespuesta(id) {
             const textarea = document.getElementById(`respuesta-${id}`);
             if (textarea.value.trim() === '') {
-                alert('Escribí una respuesta antes de enviar.');
+                alert('Escribe una respuesta antes de enviar.');
                 return;
             }
-            alert('Respuesta enviada correctamente.');
-            textarea.value = '';
+
+            try {
+                const response = await fetch(`../index.php?action=message&id=${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        respuesta: textarea.value
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    alert('Respuesta enviada correctamente.');
+                    cargarMensajes(); // Recargar el listado completo para ver el cambio
+                } else {
+                    alert(`Error: ${result.message}`);
+                }
+            } catch (error) {
+                console.error('Error al enviar respuesta:', error);
+                alert('Error al enviar respuesta.');
+            }
         }
 
-        renderizarMensajes();
+        // Cargar mensajes al iniciar
+        cargarMensajes();
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -173,57 +253,70 @@
     </script>
 
     <script>
-        // ── CAMPANA ──
-        const alertasData = [
-            { nombre: 'Rocio Cappuccio', dni: '41.689.013', fecha: '19/06/2026', dias: 30 },
-            { nombre: 'Lautaro Vienny',  dni: '42.896.710', fecha: '11/06/2026', dias: 22 },
-            { nombre: 'Ramiro Zabala',   dni: '41.135.791', fecha: '29/05/2026', dias: 9  },
-        ];
+    // ── CAMPANA DE ALERTAS REALES ──
+    function colorDias(dias) {
+        if (dias <= 10) return 'days-red';
+        if (dias <= 20) return 'days-orange';
+        return 'days-green';
+    }
 
-        function colorDias(dias) {
-            if (dias <= 10) return 'days-red';
-            if (dias <= 20) return 'days-orange';
-            return 'days-green';
-        }
-
-        function renderizarAlertas() {
-            const lista = document.getElementById('alertsList');
-            lista.innerHTML = '';
-            alertasData.forEach(a => {
-                const div = document.createElement('div');
-                div.className = 'alert-card';
-                div.innerHTML = `
-                    <div class="alert-card-name">${a.nombre}</div>
-                    <div class="alert-card-dni">DNI: ${a.dni}</div>
-                    <div class="alert-card-footer">
-                        <span style="font-size:12px; color:#475569;">Vence el ${a.fecha}</span>
-                        <span class="days-badge ${colorDias(a.dias)}">${a.dias} días</span>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                        <button class="btn-renovar-sm">Renovar</button>
-                    </div>
-                `;
-                lista.appendChild(div);
-            });
-            document.getElementById('bellBadge').textContent = alertasData.length;
-        }
-
-        const btnBell      = document.getElementById('btnBell');
-        const alertsDrop   = document.getElementById('alertsDropdown');
-
-        btnBell.addEventListener('click', (e) => {
-            e.stopPropagation();
-            alertsDrop.classList.toggle('active');
-            cerrarMenu();
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
-                alertsDrop.classList.remove('active');
+    async function renderizarAlertas() {
+        const lista = document.getElementById('alertsList');
+        lista.innerHTML = '';
+        
+        try {
+            const response = await fetch('../index.php?action=credential&sub=alerts');
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                const alertasData = result.data;
+                document.getElementById('bellBadge').textContent = alertasData.length;
+                
+                if (alertasData.length === 0) {
+                    lista.innerHTML = '<div class="p-3 text-center text-muted small">No hay credenciales por vencer</div>';
+                    return;
+                }
+                
+                alertasData.forEach(a => {
+                    const fechaVenc = new Date(a.fecha_vencimiento);
+                    const hoy = new Date();
+                    const diffTime = fechaVenc - hoy;
+                    const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                    
+                    const div = document.createElement('div');
+                    div.className = 'alert-card';
+                    div.innerHTML = `
+                        <div class="alert-card-name">${a.nombre} ${a.apellido}</div>
+                        <div class="alert-card-dni">DNI: ${a.dni || 'N/A'}</div>
+                        <div class="alert-card-footer">
+                            <span style="font-size:12px; color:#475569;">Vence el ${fechaVenc.toLocaleDateString('es-AR')}</span>
+                            <span class="days-badge ${colorDias(diffDays)}">${diffDays} días</span>
+                        </div>
+                    `;
+                    lista.appendChild(div);
+                });
             }
-        });
+        } catch (error) {
+            console.error('Error al cargar alertas:', error);
+        }
+    }
 
-        renderizarAlertas();
+    const btnBell      = document.getElementById('btnBell');
+    const alertsDrop   = document.getElementById('alertsDropdown');
+
+    btnBell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        alertsDrop.classList.toggle('active');
+        cerrarMenu();
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!alertsDrop.contains(e.target) && e.target !== btnBell) {
+            alertsDrop.classList.remove('active');
+        }
+    });
+
+    renderizarAlertas();
     </script>
 
 </body>

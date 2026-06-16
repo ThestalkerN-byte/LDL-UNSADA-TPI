@@ -90,11 +90,40 @@
     <input type="file" id="inputArchivo" accept="image/*" style="display:none">
 
     <script>
-        let sellos = [
-            { id: 1, nombre: 'ACIERA', src: 'images/aciera.png', visible: true },
-            { id: 2, nombre: 'FECEP',  src: 'images/fecep.png',  visible: true },
-            { id: 3, nombre: 'FAIE',   src: 'images/faie.png',   visible: true },
-        ];
+        // Control de acceso para administradores
+        const usuarioData = sessionStorage.getItem('usuario');
+        if (!usuarioData) {
+            window.location.href = 'login.html';
+        } else {
+            const usuarioObj = JSON.parse(usuarioData);
+            if (usuarioObj.rol !== 'admin') {
+                window.location.href = 'credencial.html';
+            } else {
+                // Actualizar nombre en menú lateral
+                document.addEventListener('DOMContentLoaded', () => {
+                    const sideMenuName = document.querySelector('.side-menu-info .name');
+                    if (sideMenuName) {
+                        sideMenuName.textContent = usuarioObj.nombre;
+                    }
+                });
+            }
+        }
+
+        let sellos = [];
+
+        // Cargar sellos desde el backend
+        async function cargarSellos() {
+            try {
+                const response = await fetch('../index.php?action=sello');
+                const result = await response.json();
+                if (result.status === 'success') {
+                    sellos = result.data;
+                    renderizarSellos();
+                }
+            } catch (error) {
+                console.error('Error al cargar sellos:', error);
+            }
+        }
 
         function renderizarSellos() {
             const grid = document.getElementById('sellosGrid');
@@ -137,31 +166,78 @@
             grid.appendChild(colAgregar);
         }
 
-        function toggleVisible(id) {
+        async function toggleVisible(id) {
             const sello = sellos.find(s => s.id === id);
-            if (sello) sello.visible = !sello.visible;
-            renderizarSellos();
+            if (sello) {
+                sello.visible = !sello.visible;
+                try {
+                    const response = await fetch(`../index.php?action=sello&id=${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ visible: sello.visible })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        renderizarSellos();
+                    }
+                } catch (error) {
+                    console.error('Error al actualizar sello:', error);
+                }
+            }
         }
 
-        function eliminarSello(id) {
+        async function eliminarSello(id) {
             if (confirm('¿Eliminar este sello?')) {
-                sellos = sellos.filter(s => s.id !== id);
-                renderizarSellos();
+                try {
+                    const response = await fetch(`../index.php?action=sello&id=${id}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        sellos = sellos.filter(s => s.id !== id);
+                        renderizarSellos();
+                    }
+                } catch (error) {
+                    console.error('Error al eliminar sello:', error);
+                }
             }
         }
 
         // Agregar nuevo sello desde archivo local
-        document.getElementById('inputArchivo').addEventListener('change', function () {
+        document.getElementById('inputArchivo').addEventListener('change', async function () {
             const archivo = this.files[0];
             if (!archivo) return;
-            const url = URL.createObjectURL(archivo);
-            const nuevoId = sellos.length ? Math.max(...sellos.map(s => s.id)) + 1 : 1;
-            sellos.push({ id: nuevoId, nombre: archivo.name, src: url, visible: true });
-            renderizarSellos();
+            
+            // Convertir imagen a base64 para enviar al backend
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64 = e.target.result;
+                const nombre = archivo.name.replace(/\.[^/.]+$/, ""); // Sin extensión
+                
+                try {
+                    const response = await fetch('../index.php?action=sello', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            nombre: nombre,
+                            src: base64,
+                            visible: true
+                        })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        await cargarSellos();
+                    }
+                } catch (error) {
+                    console.error('Error al crear sello:', error);
+                }
+            };
+            reader.readAsDataURL(archivo);
             this.value = '';
         });
 
-        renderizarSellos();
+        // Cargar sellos al iniciar
+        cargarSellos();
     </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -187,38 +263,52 @@
 
     <!-- script CAMPANA  -->
     <script>
-        const alertasData = [
-            { nombre: 'Rocio Cappuccio', dni: '41.689.013', fecha: '19/06/2026', dias: 30 },
-            { nombre: 'Lautaro Vienny',  dni: '42.896.710', fecha: '11/06/2026', dias: 22 },
-            { nombre: 'Ramiro Zabala',   dni: '41.135.791', fecha: '29/05/2026', dias: 9  },
-        ];
-
+        // ── CAMPANA DE ALERTAS REALES ──
         function colorDias(dias) {
             if (dias <= 10) return 'days-red';
             if (dias <= 20) return 'days-orange';
             return 'days-green';
         }
 
-        function renderizarAlertas() {
+        async function renderizarAlertas() {
             const lista = document.getElementById('alertsList');
             lista.innerHTML = '';
-            alertasData.forEach(a => {
-                const div = document.createElement('div');
-                div.className = 'alert-card';
-                div.innerHTML = `
-                    <div class="alert-card-name">${a.nombre}</div>
-                    <div class="alert-card-dni">DNI: ${a.dni}</div>
-                    <div class="alert-card-footer">
-                        <span style="font-size:12px; color:#475569;">Vence el ${a.fecha}</span>
-                        <span class="days-badge ${colorDias(a.dias)}">${a.dias} días</span>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                        <button class="btn-renovar-sm">Renovar</button>
-                    </div>
-                `;
-                lista.appendChild(div);
-            });
-            document.getElementById('bellBadge').textContent = alertasData.length;
+            
+            try {
+                const response = await fetch('../index.php?action=credential&sub=alerts');
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    const alertasData = result.data;
+                    document.getElementById('bellBadge').textContent = alertasData.length;
+                    
+                    if (alertasData.length === 0) {
+                        lista.innerHTML = '<div class="p-3 text-center text-muted small">No hay credenciales por vencer</div>';
+                        return;
+                    }
+                    
+                    alertasData.forEach(a => {
+                        const fechaVenc = new Date(a.fecha_vencimiento);
+                        const hoy = new Date();
+                        const diffTime = fechaVenc - hoy;
+                        const diffDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                        
+                        const div = document.createElement('div');
+                        div.className = 'alert-card';
+                        div.innerHTML = `
+                            <div class="alert-card-name">${a.nombre} ${a.apellido}</div>
+                            <div class="alert-card-dni">DNI: ${a.dni || 'N/A'}</div>
+                            <div class="alert-card-footer">
+                                <span style="font-size:12px; color:#475569;">Vence el ${fechaVenc.toLocaleDateString('es-AR')}</span>
+                                <span class="days-badge ${colorDias(diffDays)}">${diffDays} días</span>
+                            </div>
+                        `;
+                        lista.appendChild(div);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al cargar alertas:', error);
+            }
         }
 
         const btnBell      = document.getElementById('btnBell');

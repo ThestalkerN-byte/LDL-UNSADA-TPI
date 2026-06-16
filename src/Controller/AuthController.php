@@ -80,9 +80,16 @@ class AuthController {
 
         // 8. Responde con los datos que el Frontend necesita para su vista
         $this->responder(200, 'success', 'Login exitoso.', [
-            'id'     => $user->getId(),
-            'nombre' => $user->getNombre() . ' ' . $user->getApellido(),
-            'rol'    => $user->getRol(),
+            'id'          => $user->getId(),
+            'usuario'     => $user->getUsuario(),
+            'nombre'      => $user->getNombre(),
+            'apellido'    => $user->getApellido(),
+            'dni'         => $user->getDni(),
+            'email'       => $user->getEmail(),
+            'rol'         => $user->getRol(),
+            'foto_perfil' => $user->getFotoPerfil(),
+            'telefono'    => $user->getTelefono(),
+            'direccion'   => $user->getDireccion(),
         ]);
     }
 

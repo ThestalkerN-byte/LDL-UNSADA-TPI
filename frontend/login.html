@@ -43,13 +43,44 @@
 </html>
 
 <script>
-    document.getElementById('btn-login').addEventListener('click', function() {
-        let usuario = document.getElementById('inputUserDni').value;
+    document.getElementById('btn-login').addEventListener('click', async function() {
+        const identificador = document.getElementById('inputUserDni').value;
+        const password = document.getElementById('inputPassword').value;
 
-        if (usuario === 'admin') {
-            window.location.href = 'admin-usuarios.html';
-        } else {
-            window.location.href = 'credencial.html';
+        if (!identificador || !password) {
+            alert('⚠️ Por favor complete el Usuario/DNI y la Contraseña.');
+            return;
+        }
+
+        try {
+            const response = await fetch('../index.php?action=login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    identificador: identificador,
+                    password: password
+                })
+            });
+
+            const result = await response.json();
+            console.log('Login response:', result);
+
+            if (result.status === 'success') {
+                // Guardar datos del usuario en sessionStorage
+                sessionStorage.setItem('usuario', JSON.stringify(result.data));
+                
+                // Redirigir según el rol
+                if (result.data.rol === 'admin') {
+                    window.location.href = 'admin-usuarios.html';
+                } else {
+                    window.location.href = 'credencial.html';
+                }
+            } else {
+                alert(`❌ Error: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('Error al hacer login:', error);
+            alert('❌ Error al hacer login. Por favor intente nuevamente.');
         }
     });
 </script>
