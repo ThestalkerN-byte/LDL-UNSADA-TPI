@@ -121,7 +121,14 @@
         }
 
         function formatearFecha(fecha) {
-            const date = new Date(fecha);
+            
+            let fechaCorregida = fecha;
+            if (typeof fecha === 'string' && !fecha.includes('T')) {
+                fechaCorregida = fecha.replace(' ', 'T') + 'Z';
+            }
+
+            const date = new Date(fechaCorregida);
+            
             return date.toLocaleString('es-AR', { 
                 day: 'numeric', 
                 month: 'numeric', 
@@ -140,7 +147,10 @@
                 return;
             }
 
-            mensajes.forEach(msg => {
+            // Clonamos el array original y lo invertimos para que los más nuevos queden arriba
+            const mensajesInvertidos = [...mensajes].reverse();
+
+            mensajesInvertidos.forEach(msg => {
                 const card = document.createElement('div');
                 card.className = 'card bg-white shadow-sm mb-3 rounded-3';
                 card.style.border = '1.5px solid #DEE2E6';
@@ -216,10 +226,24 @@
                 const result = await response.json();
 
                 if (result.status === 'success') {
-                    alert('Respuesta enviada correctamente.');
-                    cargarMensajes(); // Recargar el listado completo para ver el cambio
+                    
+                    cargarMensajes(); 
+                    
+                    Swal.fire({
+                        title: '¡Respuesta Enviada!',
+                        text: 'El usuario ya puede ver tu respuesta.',
+                        icon: 'success',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true
+                    });
                 } else {
-                    alert(`Error: ${result.message}`);
+                    Swal.fire({
+                        title: 'Error',
+                        text: `Hubo un problema: ${result.message}`,
+                        icon: 'error',
+                        confirmButtonColor: '#0B2A4A'
+                    });
                 }
             } catch (error) {
                 console.error('Error al enviar respuesta:', error);
@@ -318,6 +342,8 @@
 
     renderizarAlertas();
     </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 </body>
 </html>

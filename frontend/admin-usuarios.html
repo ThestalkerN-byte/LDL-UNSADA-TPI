@@ -132,7 +132,9 @@
 
         function formatearFecha(fechaISO) {
             if (!fechaISO) return 'N/A';
-            const fecha = new Date(fechaISO);
+            // Extraemos solo el año, mes y día, y le clavamos las 12 del mediodía
+            const soloFecha = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO.split(' ')[0];
+            const fecha = new Date(soloFecha + 'T12:00:00');
             return fecha.toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric', year: 'numeric' });
         }
 
@@ -140,7 +142,9 @@
             if (!fechaISO) return true;
             const hoy = new Date();
             hoy.setHours(0, 0, 0, 0);
-            const fechaVenc = new Date(fechaISO);
+            // Aplicamos la misma corrección del mediodía para el cálculo de vencimiento
+            const soloFecha = fechaISO.includes('T') ? fechaISO.split('T')[0] : fechaISO.split(' ')[0];
+            const fechaVenc = new Date(soloFecha + 'T12:00:00');
             fechaVenc.setHours(0, 0, 0, 0);
             return fechaVenc < hoy;
         }
@@ -218,7 +222,7 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const btnOpen  = document.getElementById('btnOpenMenu');
+        const btnOpen = document.getElementById('btnOpenMenu');
         const btnClose = document.getElementById('btnCloseMenu');
         const overlay  = document.getElementById('menuOverlay');
         const sideMenu = document.getElementById('sideMenu');
@@ -236,39 +240,59 @@
         btnClose.addEventListener('click', cerrarMenu);
         overlay.addEventListener('click', cerrarMenu);
 
-        let usuarioAEliminar = null;
-
-        // Funciones para el Modal de Eliminar
+        
         function abrirModalEliminar(userId) {
-            usuarioAEliminar = userId;
-            document.getElementById('modalEliminar').style.display = 'flex';
-        }
+            // 1. Mostramos la advertencia de peligro
+            Swal.fire({
+                title: '¿Eliminar Usuario?',
+                text: "Esta acción no se puede deshacer.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545', 
+                cancelButtonColor: '#6c757d', 
+                confirmButtonText: 'Sí, Eliminar',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true 
+            }).then(async (result) => {
+                
+                // 2. Si el usuario apretó "Sí, Eliminar"
+                if (result.isConfirmed) {
+                    try {
+                        const response = await fetch(`../index.php?action=user&id=${userId}`, {
+                            method: 'DELETE'
+                        });
+                        const data = await response.json();
 
-        function cerrarModalEliminar() {
-            usuarioAEliminar = null;
-            document.getElementById('modalEliminar').style.display = 'none';
-        }
-
-        async function confirmarEliminacion() {
-            if (!usuarioAEliminar) return;
-
-            try {
-                const response = await fetch(`../index.php?action=user&id=${usuarioAEliminar}`, {
-                    method: 'DELETE'
-                });
-                const result = await response.json();
-
-                if (result.status === 'success') {
-                    alert('Usuario eliminado correctamente');
-                    cerrarModalEliminar();
-                    cargarDatos(); // Recargar la lista
-                } else {
-                    alert(`Error: ${result.message}`);
+                        if (data.status === 'success') {
+                            // 3. Avisamos que se borró con éxito
+                            Swal.fire({
+                                title: '¡Eliminado!',
+                                text: 'El usuario ha sido eliminado correctamente.',
+                                icon: 'success',
+                                showConfirmButton: false, 
+                                timer: 3000,              
+                                timerProgressBar: true    
+                            });
+                            cargarDatos(); // Recargamos la lista visualmente
+                        } else {
+                            Swal.fire({
+                                title: 'Error',
+                                text: `Hubo un problema: ${data.message}`,
+                                icon: 'error',
+                                confirmButtonColor: '#0B2A4A'
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error al eliminar usuario:', error);
+                        Swal.fire({
+                            title: 'Error de conexión',
+                            text: 'No se pudo conectar con el servidor.',
+                            icon: 'error',
+                            confirmButtonColor: '#0B2A4A'
+                        });
+                    }
                 }
-            } catch (error) {
-                console.error('Error al eliminar usuario:', error);
-                alert('Error al eliminar usuario');
-            }
+            });
         }
 
     </script>
@@ -341,16 +365,7 @@
     renderizarAlertas();
     </script>
 
-    <div id="modalEliminar" class="modal-overlay">
-    <div class="modal-card">
-        <h4 class="modal-title">¿Eliminar Usuario?</h4>
-        <p class="modal-text">Estás a punto de eliminar a este usuario del sistema. Esta acción no se puede deshacer.</p>
-        <div class="modal-buttons">
-            <button class="btn btn-cancelar-custom px-4 py-2" onclick="cerrarModalEliminar()">Cancelar</button>
-            <button class="btn btn-danger px-4 py-2" onclick="confirmarEliminacion()">Sí, Eliminar</button>
-        </div>
-    </div>
-</div>
+   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
 </body>
 </html>

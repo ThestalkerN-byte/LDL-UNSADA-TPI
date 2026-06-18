@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I&B - Editar Usuario</title>
+    <title>ICB - Editar Usuario</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="style.css">
@@ -75,9 +75,13 @@
             <div class="admin-section">
                 <div class="section-title">INFORMACIÓN PERSONAL</div>
                 <div class="form-grid">
-                    <div class="form-field full-width">
-                        <label>Nombre y Apellido</label>
+                    <div class="form-field">
+                        <label>Nombre(s)</label>
                         <input type="text" id="nombre">
+                    </div>
+                    <div class="form-field">
+                        <label>Apellido(s)</label>
+                        <input type="text" id="apellido">
                     </div>
                     <div class="form-field">
                         <label>DNI</label>
@@ -85,7 +89,7 @@
                     </div>
                     <div class="form-field">
                         <label>Teléfono</label>
-                        <input type="text" id="telefono">
+                        <input type="text" id="telefono" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                     <div class="form-field full-width">
                         <label>Dirección residencial</label>
@@ -255,7 +259,8 @@
                 renderizarSellos(sellosDisponibles, credencialActual?.sellos ?? null);
 
                 // Llenar formulario
-                document.getElementById('nombre').value = usuarioActual.nombre + ' ' + usuarioActual.apellido;
+                document.getElementById('nombre').value = usuarioActual.nombre || '';
+                document.getElementById('apellido').value = usuarioActual.apellido || '';
                 document.getElementById('dni').value = usuarioActual.dni;
                 document.getElementById('telefono').value = usuarioActual.telefono || '';
                 document.getElementById('direccion').value = usuarioActual.direccion || '';
@@ -281,7 +286,10 @@
         }
 
         document.getElementById('guardarBtn').onclick = async () => {
-            const nombreCompleto = document.getElementById('nombre').value;
+            // Capturamos los campos por separado
+            const nombre = document.getElementById('nombre').value.trim();
+            const apellido = document.getElementById('apellido').value.trim();
+            
             const telefono = document.getElementById('telefono').value;
             const direccion = document.getElementById('direccion').value;
             const rol = document.getElementById('rol').value;
@@ -289,15 +297,10 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
 
-            if (!nombreCompleto || !rol || !email) {
-                alert('⚠️ Por favor complete el Nombre, Rol y Email como mínimo.');
+            if (!nombre || !apellido || !rol || !email) {
+                alert('⚠️ Por favor complete el Nombre, Apellido, Rol y Email como mínimo.');
                 return;
             }
-
-            // Separar nombre y apellido
-            const partes = nombreCompleto.trim().split(' ');
-            const nombre = partes[0] || '';
-            const apellido = partes.length > 1 ? partes.slice(1).join(' ') : nombreCompleto;
 
             // Obtener sellos seleccionados
             const sellosSeleccionados = [];
@@ -367,12 +370,30 @@
                     }
                 }
 
-                alert('✅ Usuario actualizado exitosamente.');
-                window.location.href = 'admin-usuarios.html';
+                // Modal de éxito 
+                Swal.fire({
+                    title: '¡Cambios Guardados!',
+                    text: 'Los datos del usuario y su credencial fueron actualizados.',
+                    icon: 'success',
+                    showConfirmButton: false, // Ocultamos el botón para que sea automático
+                    timer: 3000,              // Espera 3 segundos
+                    timerProgressBar: true,   // Muestra la barrita de progreso
+                    allowOutsideClick: false
+                }).then(() => {
+                    // Redirige automáticamente al cerrar
+                    window.location.href = 'admin-usuarios.html';
+                });
 
             } catch (error) {
                 console.error('Error al actualizar usuario:', error);
-                alert('❌ Error al actualizar usuario. Por favor intente nuevamente.');
+                
+                // Modal de error profesional
+                Swal.fire({
+                    title: 'Error',
+                    text: 'No se pudieron guardar los cambios. Por favor, intentá de nuevo.',
+                    icon: 'error',
+                    confirmButtonColor: '#0B2A4A'
+                });
             }
         };
 
@@ -468,5 +489,8 @@
 
         renderizarAlertas();
     </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 </body>
 </html>

@@ -20,9 +20,8 @@
         
         <h3 class="text-center fw-bold mb-4" style="color: var(--primary-color, #00154a); text-transform: uppercase;">Mensajes</h3>
 
-        <div class="d-flex justify-content-between mb-4">
-            <button class="btn btn-admin-primary px-4 py-2" onclick="window.location.href='enviar-consulta.html'">Nueva Consulta</button>
-            <button class="btn btn-outline-custom rounded-pill px-4" onclick="window.location.href='credencial.html'">Volver al Inicio</button>
+        <div class="d-flex justify-content-center mb-4">
+            <button class="btn btn-admin-primary rounded-pill px-5 py-2 fw-bold shadow-sm" onclick="window.location.href='enviar-consulta.html'">Nueva Consulta</button>
         </div>
 
         <div id="mensajesUsuarioList">
@@ -32,8 +31,10 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
+    
+   <script>
         document.addEventListener('DOMContentLoaded', async () => {
+
             // Control de acceso - Redirigir si no está logueado
             const usuarioData = sessionStorage.getItem('usuario');
             if (!usuarioData) {
@@ -42,6 +43,23 @@
             }
             const usuario = JSON.parse(usuarioData);
 
+            // --- FUNCIÓN PARA CORREGIR LA ZONA HORARIA (De UTC a Local) ---
+            function formatearFechaUTC(fecha) {
+                if (!fecha) return '';
+                let fechaCorregida = fecha;
+                if (typeof fecha === 'string' && !fecha.includes('T')) {
+                    fechaCorregida = fecha.replace(' ', 'T') + 'Z';
+                }
+                return new Date(fechaCorregida).toLocaleString('es-AR', {
+                    day: 'numeric',
+                    month: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            }
+            // --------------------------------------------------------------
+
             try {
                 // Cargar mensajes de este usuario
                 const response = await fetch(`../index.php?action=message&id_usuario=${usuario.id}&rol=user`);
@@ -49,6 +67,12 @@
 
                 if (result.status === 'success') {
                     const mensajes = result.data;
+
+                    // --- NUEVO: Guardamos la cantidad de respuestas actuales como "leídas" ---
+                    const respuestasActuales = mensajes.filter(msg => msg.respuesta && msg.respuesta.trim() !== '').length;
+                    localStorage.setItem('respuestasLeidas_' + usuario.id, respuestasActuales);
+                    // ------------------------------------------------------------------------
+
                     const container = document.getElementById('mensajesUsuarioList');
                     container.innerHTML = '';
 
@@ -57,29 +81,22 @@
                         return;
                     }
 
-                    mensajes.forEach(msg => {
+                    // Clonamos el array original y lo invertimos para que el más nuevo quede arriba
+                    const mensajesInvertidos = [...mensajes].reverse();
+
+                    mensajesInvertidos.forEach(msg => {
                         const card = document.createElement('div');
                         card.className = 'card bg-white shadow-sm p-4 border-0 mb-4';
                         card.style.borderRadius = '12px';
                         card.style.border = '1px solid #DEE2E6';
 
-                        const dateStr = new Date(msg.fecha).toLocaleString('es-AR', {
-                            day: 'numeric',
-                            month: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        });
+                        // APLICAMOS LA CORRECCIÓN AL HORARIO DEL MENSAJE
+                        const dateStr = formatearFechaUTC(msg.fecha);
 
                         let respuestaHtml = '';
                         if (msg.respuesta) {
-                            const dateRespStr = new Date(msg.fecha_respuesta).toLocaleString('es-AR', {
-                                day: 'numeric',
-                                month: 'numeric',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            });
+                            // APLICAMOS LA CORRECCIÓN AL HORARIO DE LA RESPUESTA
+                            const dateRespStr = formatearFechaUTC(msg.fecha_respuesta);
 
                             respuestaHtml = `
                                 <div class="msg-admin mt-3 pt-3 border-top">
@@ -120,5 +137,6 @@
             }
         });
     </script>
+
 </body>
 </html>

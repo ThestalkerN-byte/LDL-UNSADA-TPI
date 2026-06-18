@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login ICB</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -14,6 +15,7 @@
             <img src="images/logo.png" alt="Logo ICB" class="logo-icb" onerror="this.src='https://via.placeholder.com/180x60/FFFFFF/0B2A4A?text=ICB+DIGITAL'">
             <p class="subtitle">IGLESIA CRISTIANA BÍBLICA</p>
             <h1 class="main-title">Bienvenido</h1>
+            <div id="cajaErrorLogin" class="alert alert-danger d-none py-2 text-center small mb-3" role="alert"></div>
             <form id="loginForm">
                 <div class="mb-3">
                      <label for="inputUserDni" class="form-label">Usuario o DNI</label>
@@ -21,7 +23,15 @@
                 </div>
                 <div class="mb-3">
                     <label for="inputPassword" class="form-label">Contraseña</label>
-                    <input type="password" class="form-control" id="inputPassword"  placeholder="Ingrese...">
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="inputPassword" placeholder="Ingrese...">
+                        <button class="btn btn-outline-secondary" type="button" id="btnTogglePassword" style="border-color: #dee2e6;">
+                            <i class="bi bi-eye-fill" id="iconoPassword"></i>
+                        </button>
+                    </div>
+                    <div id="capsWarning" class="text-danger mt-1 d-none" style="font-size: 0.8rem; font-weight: bold;">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Bloq Mayús activado
+                    </div>
                 </div>
                 <div class="checkbox-container">
                     <div class="form-check">
@@ -43,12 +53,58 @@
 </html>
 
 <script>
+
+
+    // --- LÓGICA DEL RECUÉRDAME (Al cargar la página) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedDni = localStorage.getItem('icbDniGuardado');
+        if (savedDni) {
+            document.getElementById('inputUserDni').value = savedDni;
+            document.getElementById('rememberCheck').checked = true; 
+        }
+    });
+
+    // --- LÓGICA DEL OJITO DE LA CONTRASEÑA ---
+    document.getElementById('btnTogglePassword').addEventListener('click', function() {
+        const inputPwd = document.getElementById('inputPassword');
+        const icon = document.getElementById('iconoPassword');
+        
+        if (inputPwd.type === 'password') {
+            inputPwd.type = 'text';
+            icon.classList.remove('bi-eye-fill');
+            icon.classList.add('bi-eye-slash-fill');
+        } else {
+            inputPwd.type = 'password';
+            icon.classList.remove('bi-eye-slash-fill');
+            icon.classList.add('bi-eye-fill');
+        }
+    });
+
+
+    // --- LÓGICA DE DETECCIÓN DE MAYÚSCULAS ---
+    document.getElementById('inputPassword').addEventListener('keyup', function(event) {
+        const capsWarning = document.getElementById('capsWarning');
+        // getModifierState le pregunta al teclado si la luz de mayúsculas está prendida
+        if (event.getModifierState('CapsLock')) {
+            capsWarning.classList.remove('d-none');
+        } else {
+            capsWarning.classList.add('d-none');
+        }
+    });
+
+
+    // --- LÓGICA DEL LOGIN (Sin alerts) ---
     document.getElementById('btn-login').addEventListener('click', async function() {
         const identificador = document.getElementById('inputUserDni').value;
         const password = document.getElementById('inputPassword').value;
+        const cajaError = document.getElementById('cajaErrorLogin');
+
+        // Ocultar error previo al reintentar
+        cajaError.classList.add('d-none');
 
         if (!identificador || !password) {
-            alert('⚠️ Por favor complete el Usuario/DNI y la Contraseña.');
+            cajaError.textContent = '⚠️ Por favor complete el Usuario/DNI y la Contraseña.';
+            cajaError.classList.remove('d-none');
             return;
         }
 
@@ -66,21 +122,30 @@
             console.log('Login response:', result);
 
             if (result.status === 'success') {
-                // Guardar datos del usuario en sessionStorage
                 sessionStorage.setItem('usuario', JSON.stringify(result.data));
+
+                const rememberIsChecked = document.getElementById('rememberCheck').checked;
+                if (rememberIsChecked) {
+                    localStorage.setItem('icbDniGuardado', identificador);
+                } else {
+                    localStorage.removeItem('icbDniGuardado');
+                }
                 
-                // Redirigir según el rol
                 if (result.data.rol === 'admin') {
                     window.location.href = 'admin-usuarios.html';
                 } else {
                     window.location.href = 'credencial.html';
                 }
             } else {
-                alert(`❌ Error: ${result.message}`);
+                // Reemplazo del alert de error de credenciales
+                cajaError.textContent = `❌ ${result.message}`;
+                cajaError.classList.remove('d-none');
             }
         } catch (error) {
             console.error('Error al hacer login:', error);
-            alert('❌ Error al hacer login. Por favor intente nuevamente.');
+            // Reemplazo del alert de error de red
+            cajaError.textContent = '❌ Error al hacer login. Por favor intente nuevamente.';
+            cajaError.classList.remove('d-none');
         }
     });
 </script>

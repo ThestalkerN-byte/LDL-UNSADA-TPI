@@ -67,7 +67,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const mensaje = mensajeInput.value.trim();
             
             if (!mensaje) {
-                alert('⚠️ Por favor escribe tu consulta.');
+                Swal.fire({
+                    title: 'Campo vacío',
+                    text: 'Por favor, escribí tu consulta antes de enviar.',
+                    icon: 'warning',
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#0B2A4A' 
+                });
                 return;
             }
 
@@ -84,16 +90,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
 
                 if (result.status === 'success') {
-                    alert('✅ Tu consulta ha sido enviada exitosamente.');
-                    window.location.href = 'mensajes-usuarios.html';
+                    
+                    Swal.fire({
+                        title: '¡Mensaje Enviado!',
+                        text: 'Tu consulta fue enviada al administrador.',
+                        icon: 'success',
+                        showConfirmButton: false,
+                        timer: 3000, 
+                        timerProgressBar: true
+                    }).then(() => {
+                        // Redirigimos cuando el cartelito termina su animación
+                        window.location.href = 'mensajes-usuarios.html';
+                    });
                 } else {
-                    alert(`❌ Error: ${result.message}`);
+                    // Modal de error del backend
+                    Swal.fire({
+                        title: 'Error',
+                        text: `Hubo un problema: ${result.message}`,
+                        icon: 'error',
+                        confirmButtonColor: '#0B2A4A'
+                    });
                 }
             } catch (error) {
                 console.error('Error al enviar la consulta:', error);
-                alert('❌ Error al enviar la consulta. Por favor intente nuevamente.');
+                
+                Swal.fire({
+                    title: 'Error de conexión',
+                    text: 'No pudimos enviar tu consulta. Por favor, intentá de nuevo.',
+                    icon: 'error',
+                    confirmButtonColor: '#0B2A4A'
+                });
             }
-        });
+        }); 
     }
 
     const botonVolver = document.querySelector('.btn-admin-secondary');
@@ -104,5 +132,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 </body>
 </html>
