@@ -158,14 +158,14 @@ class AuthController {
         /** @var \App\Repository\UserRepository $userRepo */
         $userRepo = $this->em->getRepository(User::class);
         
-        // Buscar por usuario o DNI primero
+        // Buscar por usuario o DNI primero (solo activos)
         $user = $userRepo->findByUsuarioODni($identificador);
         if (!$user) {
-            // Intentar buscar por correo electrónico
-            $user = $userRepo->findOneBy(['email' => $identificador]);
+            // Intentar buscar por correo electrónico (solo activos)
+            $user = $userRepo->findActiveByEmail($identificador);
         }
 
-        if (!$user || !$user->isEstado()) {
+        if (!$user) {
             $this->responder(404, 'error', 'Usuario no registrado o inactivo.');
             return;
         }
