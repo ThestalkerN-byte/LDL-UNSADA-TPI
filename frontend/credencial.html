@@ -4,22 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Credencial Digital Institucional</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
     <header>
-        <button class="btn-header" onclick="location.href='login.html'">Cerrar Sesión</button>
-        <div class="header-right">
-            <a href="mensajes-usuarios.html" style="position: relative; display: inline-block;">
-    
-                <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
-                    <path d="M224 0c-17.7 0-32 14.3-32 32V51.2C119 66 64 130.6 64 208v118.8c0 47-17.3 92-48.4 127.6l-7.4 8.3c-8.4 9.4-10.4 22.9-5.3 34.4S19.4 512 32 512H416c12.6 0 24-7.4 29.1-18.9s3.1-25-5.3-34.4l-7.4-8.3C401.3 418.8 384 373.8 384 326.8V208c0-77.4-55-142-128-156.8V32c0-17.7-14.3-32-32-32zm45.3 493.3c12-12 18.7-28.3 18.7-45.3H224 160c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7z"/>
-                </svg>
+        <div class="header-content">
+            <button class="btn-header" onclick="location.href='login.html'">Cerrar Sesión</button>
+            <div class="header-right">
+                <a href="mensajes-usuarios.html" style="position: relative; display: inline-block;">
+        
+                    <svg class="bell-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+                        <path d="M224 0c-17.7 0-32 14.3-32 32V51.2C119 66 64 130.6 64 208v118.8c0 47-17.3 92-48.4 127.6l-7.4 8.3c-8.4 9.4-10.4 22.9-5.3 34.4S19.4 512 32 512H416c12.6 0 24-7.4 29.1-18.9s3.1-25-5.3-34.4l-7.4-8.3C401.3 418.8 384 373.8 384 326.8V208c0-77.4-55-142-128-156.8V32c0-17.7-14.3-32-32-32zm45.3 493.3c12-12 18.7-28.3 18.7-45.3H224 160c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7z"/>
+                    </svg>
 
-                <span id="alertaMensajePunto" style="display: none; position: absolute; top: -2px; right: -2px; background-color: #dc3545; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #0B2A4A;"></span>
-            </a>
-            <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+                    <span id="alertaMensajePunto" style="display: none; position: absolute; top: -2px; right: -2px; background-color: #dc3545; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid #0B2A4A;"></span>
+                </a>
+                <img src="images/logo.png" alt="ICB" class="header-logo" onerror="this.outerHTML='<span style=\'color:white; font-weight:bold; font-size:24px;\'>I&B</span>'">
+            </div>
         </div>
     </header>
 
@@ -90,7 +92,9 @@
     </main>
 
     <footer>
-        <button class="btn-footer">Enviar consulta</button>
+        <div class="footer-content">
+            <button class="btn-footer">Enviar consulta</button>
+        </div>
     </footer>
 
     <script>
