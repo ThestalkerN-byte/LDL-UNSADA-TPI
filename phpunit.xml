@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="depends,defects"
+         beStrictAboutOutputDuringTests="false"
+         failOnWarning="true"
+         failOnDeprecation="false">
+
+    <testsuites>
+        <testsuite name="Authentication">
+            <directory>tests/Authentication</directory>
+        </testsuite>
+        <testsuite name="AccessControl">
+            <directory>tests/AccessControl</directory>
+        </testsuite>
+        <testsuite name="CredentialDisplay">
+            <directory>tests/CredentialDisplay</directory>
+        </testsuite>
+        <testsuite name="CredentialManagement">
+            <directory>tests/CredentialManagement</directory>
+        </testsuite>
+        <testsuite name="UserManagement">
+            <directory>tests/UserManagement</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+
+    <php>
+        <!-- Cambiar a "0" si se quiere correr los tests de integración HTTP
+             contra el AuthController real (requiere conexión a la base de
+             datos configurada en config/bootstrap.php). -->
+        <env name="SKIP_DB_INTEGRATION_TESTS" value="0"/>
+        <env name="TEST_SERVER_HOST" value="127.0.0.1"/>
+        <env name="TEST_SERVER_PORT" value="8099"/>
+    </php>
+</phpunit>
