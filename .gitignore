@@ -1,2 +1,8 @@
 /vendor/
 /data/
+
+# Archivos de configuración de entorno (contienen credenciales reales)
+.env
+
+# NO ignorar .env.example (es el template público)
+# .env.example

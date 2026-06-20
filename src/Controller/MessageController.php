@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Entity\Message;
 use App\Entity\User;
 use App\Entity\History;
+use App\Security\UserContext;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -47,14 +48,13 @@ class MessageController {
     /**
      * GET ?action=message
      * Devuelve los mensajes. Si el usuario es administrador ve todos; si es usuario regular, ve solo los propios.
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION.
+     * El AuthMiddleware setea UserContext antes de llegar al controlador.
      */
     private function index(): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        $userId = $_SESSION['id_usuario'] ?? $_GET['id_usuario'] ?? null;
-        $rol    = $_SESSION['rol'] ?? $_GET['rol'] ?? null;
+        $userId = UserContext::getId() ?? $_GET['id_usuario'] ?? null;
+        $rol    = UserContext::getRol() ?? $_GET['rol'] ?? null;
 
         $messageRepo = $this->em->getRepository(Message::class);
 
@@ -69,8 +69,7 @@ class MessageController {
                     $mensajes = [];
                 }
             } else {
-                // Fallback para testing cómodo: si no hay sesión iniciada, listar todos
-                $mensajes = $messageRepo->findAll();
+                $mensajes = [];
             }
         }
 
@@ -84,20 +83,18 @@ class MessageController {
     /**
      * POST ?action=message
      * Permite a un usuario registrar una nueva consulta (RF07 / CU4).
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION.
      */
     private function create(): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['contenido'])) {
             $this->responder(400, 'error', 'El contenido de la consulta es obligatorio.');
             return;
         }
 
-        // Buscar el usuario emisor
-        $userId = $_SESSION['id_usuario'] ?? $data['id_usuario'] ?? null;
+        // Buscar el usuario emisor desde el JWT (UserContext)
+        $userId = UserContext::getId() ?? $data['id_usuario'] ?? null;
         if (!$userId) {
             $this->responder(400, 'error', 'No se ha detectado sesión de usuario activa.');
             return;
@@ -153,12 +150,11 @@ class MessageController {
 
     /**
      * Helper para registrar auditoría.
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION.
      */
     private function registrarHistorial(string $accion): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        $adminId = $_SESSION['id_usuario'] ?? $_GET['admin_id'] ?? null;
+        $adminId = UserContext::getId() ?? $_GET['admin_id'] ?? null;
         $admin = null;
         if ($adminId) {
             $admin = $this->em->getRepository(User::class)->find((int)$adminId);

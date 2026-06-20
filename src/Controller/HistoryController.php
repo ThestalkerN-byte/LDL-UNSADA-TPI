@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Entity\History;
+use App\Security\UserContext;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -33,13 +34,11 @@ class HistoryController {
     /**
      * GET ?action=history
      * Devuelve la bitácora completa, ordenada por fecha decreciente.
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION.
      */
     private function index(): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        $rol = $_SESSION['rol'] ?? $_GET['rol'] ?? null;
+        $rol = UserContext::getRol() ?? $_GET['rol'] ?? null;
 
         // Comprobación de seguridad: solo admins
         if ($rol !== 'admin' && !isset($_GET['bypass_admin'])) {
