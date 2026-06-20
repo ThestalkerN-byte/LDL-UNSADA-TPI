@@ -79,11 +79,14 @@ class UserController {
 
     /**
      * GET ?action=user&id={id}
+     * Solo devuelve usuarios activos (estado = true).
      */
     private function show(int $id): void {
-        $user = $this->em->getRepository(User::class)->find($id);
+        /** @var \App\Repository\UserRepository $userRepo */
+        $userRepo = $this->em->getRepository(User::class);
+        $user = $userRepo->findActiveById($id);
 
-        if (!$user || !$user->isEstado()) {
+        if (!$user) {
             $this->responder(404, 'error', 'Usuario no encontrado o inactivo.');
             return;
         }
@@ -114,18 +117,19 @@ class UserController {
             return;
         }
 
+        /** @var \App\Repository\UserRepository $userRepo */
         $userRepo = $this->em->getRepository(User::class);
 
-        // Validar unicidad de usuario, dni y email
-        if ($userRepo->findOneBy(['usuario' => $data['usuario']])) {
+        // Validar unicidad solo contra usuarios activos (borrado lógico excluido)
+        if ($userRepo->findActiveByUsuario(trim($data['usuario']))) {
             $this->responder(400, 'error', 'El nombre de usuario ya está registrado.');
             return;
         }
-        if ($userRepo->findOneBy(['dni' => $data['dni']])) {
+        if ($userRepo->findActiveByDni(trim($data['dni']))) {
             $this->responder(400, 'error', 'El DNI ya está registrado.');
             return;
         }
-        if ($userRepo->findOneBy(['email' => $data['email']])) {
+        if ($userRepo->findActiveByEmail(trim($data['email']))) {
             $this->responder(400, 'error', 'El correo electrónico ya está registrado.');
             return;
         }
@@ -160,21 +164,24 @@ class UserController {
     /**
      * PUT ?action=user&id={id}
      * Actualiza datos del usuario (RF08 / CU3).
+     * Solo opera sobre usuarios activos; las validaciones de unicidad ignoran usuarios dados de baja.
      */
     private function update(int $id): void {
-        $user = $this->em->getRepository(User::class)->find($id);
+        /** @var \App\Repository\UserRepository $userRepo */
+        $userRepo = $this->em->getRepository(User::class);
+        $user = $userRepo->findActiveById($id);
 
-        if (!$user || !$user->isEstado()) {
+        if (!$user) {
             $this->responder(404, 'error', 'Usuario no encontrado o inactivo.');
             return;
         }
 
         $data = json_decode(file_get_contents('php://input'), true);
-        $userRepo = $this->em->getRepository(User::class);
 
-        // Validar unicidad si cambian campos únicos
+        // Validar unicidad solo contra otros usuarios activos
         if (!empty($data['usuario']) && $data['usuario'] !== $user->getUsuario()) {
-            if ($userRepo->findOneBy(['usuario' => $data['usuario']])) {
+            $existente = $userRepo->findActiveByUsuario(trim($data['usuario']));
+            if ($existente && $existente->getId() !== $user->getId()) {
                 $this->responder(400, 'error', 'El nombre de usuario ya está registrado.');
                 return;
             }
@@ -182,7 +189,8 @@ class UserController {
         }
 
         if (!empty($data['dni']) && $data['dni'] !== $user->getDni()) {
-            if ($userRepo->findOneBy(['dni' => $data['dni']])) {
+            $existente = $userRepo->findActiveByDni(trim($data['dni']));
+            if ($existente && $existente->getId() !== $user->getId()) {
                 $this->responder(400, 'error', 'El DNI ya está registrado.');
                 return;
             }
@@ -190,7 +198,8 @@ class UserController {
         }
 
         if (!empty($data['email']) && $data['email'] !== $user->getEmail()) {
-            if ($userRepo->findOneBy(['email' => $data['email']])) {
+            $existente = $userRepo->findActiveByEmail(trim($data['email']));
+            if ($existente && $existente->getId() !== $user->getId()) {
                 $this->responder(400, 'error', 'El correo electrónico ya está registrado.');
                 return;
             }
@@ -231,31 +240,27 @@ class UserController {
 
     /**
      * DELETE ?action=user&id={id}
-     * Realiza el borrado físico del usuario (RF08 / CU3 A1).
+     * Realiza baja lógica del usuario (estado = false) (RF08 / CU3 A1).
      */
     private function delete(int $id): void {
-        $user = $this->em->getRepository(User::class)->find($id);
+        /** @var \App\Repository\UserRepository $userRepo */
+        $userRepo = $this->em->getRepository(User::class);
+        $user = $userRepo->findActiveById($id);
 
         if (!$user) {
-            $this->responder(404, 'error', 'Usuario no encontrado.');
+            $this->responder(404, 'error', 'Usuario no encontrado o ya inactivo.');
             return;
         }
 
-        // Eliminar también las credenciales del usuario
-        $credentialRepo = $this->em->getRepository(\App\Entity\Credential::class);
-        $credenciales = $credentialRepo->findBy(['usuario' => $user]);
-        foreach ($credenciales as $cred) {
-            $this->em->remove($cred);
-        }
+        // Baja lógica: no se elimina el registro, solo se marca como inactivo
+        $user->setEstado(false);
 
-        // Registrar acción en Historial antes de eliminar
-        $this->registrarHistorial("Eliminación física de usuario: " . $user->getUsuario());
+        // Registrar acción en Historial
+        $this->registrarHistorial("Baja lógica de usuario: " . $user->getUsuario());
 
-        // Borrado físico del usuario
-        $this->em->remove($user);
         $this->em->flush();
 
-        $this->responder(200, 'success', 'Usuario eliminado correctamente.');
+        $this->responder(200, 'success', 'Usuario dado de baja correctamente.');
     }
 
     /**
@@ -271,8 +276,15 @@ class UserController {
             $admin = $this->em->getRepository(User::class)->find((int)$adminId);
         }
         if (!$admin) {
-            // Fallback al primer administrador para pruebas locales
-            $admin = $this->em->getRepository(User::class)->findOneBy(['rol' => 'admin']);
+            // Fallback al primer administrador activo para pruebas locales
+            $admin = $this->em->getRepository(User::class)
+                ->createQueryBuilder('u')
+                ->where('u.rol = :rol')
+                ->andWhere('u.estado = true')
+                ->setParameter('rol', 'admin')
+                ->setMaxResults(1)
+                ->getQuery()
+                ->getOneOrNullResult();
         }
 
         if ($admin) {
