@@ -7,15 +7,15 @@
   },
   "servers": [
     {
-      "url": "http://localhost:8000",
-      "description": "Servidor de desarrollo local de PHP"
+      "url": "http://localhost/ldl-unsada-tpi",
+      "description": "Servidor de desarrollo local (Apache puerto 80, ruta /ldl-unsada-tpi)"
     }
   ],
   "paths": {
     "/index.php?action=login": {
       "post": {
         "summary": "Iniciar Sesión",
-        "description": "Permite identificarse con el DNI o el nombre de usuario y una contraseña.",
+        "description": "Autentica al usuario con DNI o nombre de usuario. Devuelve un token JWT en data.token que debe guardarse y enviarse en cada request como header Authorization: Bearer &lt;token&gt;.",
         "requestBody": {
           "required": true,
           "content": {
@@ -32,7 +32,29 @@
           }
         },
         "responses": {
-          "200": { "description": "Login exitoso y sesión iniciada." },
+          "200": {
+            "description": "Login exitoso. Incluye token JWT en data.token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "message": { "type": "string", "example": "Login exitoso." },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "token": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                        "id": { "type": "integer", "example": 1 },
+                        "usuario": { "type": "string", "example": "admin" },
+                        "rol": { "type": "string", "example": "admin" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "401": { "description": "Credenciales inválidas o usuario inactivo." }
         }
       }
@@ -40,9 +62,9 @@
     "/index.php?action=logout": {
       "post": {
         "summary": "Cerrar Sesión",
-        "description": "Destruye la sesión del usuario activo en el servidor.",
+        "description": "Logout stateless. El backend no destruye ninguna sesión (JWT es stateless). El frontend debe descartar el token almacenado.",
         "responses": {
-          "200": { "description": "Sesión cerrada correctamente." }
+          "200": { "description": "Sesión cerrada correctamente (el frontend descartó el token)." }
         }
       }
     },
@@ -97,7 +119,8 @@
     "/index.php?action=user": {
       "get": {
         "summary": "Listar Usuarios",
-        "description": "Devuelve la lista de usuarios activos. Permite filtrar.",
+        "description": "Devuelve la lista de usuarios activos. Permite filtrar. Requiere JWT (Authorize arriba).",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "dni", "in": "query", "required": false, "schema": { "type": "string" } },
           { "name": "apellido", "in": "query", "required": false, "schema": { "type": "string" } },
@@ -109,6 +132,7 @@
       },
       "post": {
         "summary": "Crear Usuario",
+        "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
           "content": {
@@ -138,6 +162,7 @@
     "/index.php?action=user&id={id}": {
       "get": {
         "summary": "Detalle de Usuario",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -147,6 +172,7 @@
       },
       "put": {
         "summary": "Actualizar Usuario",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -174,7 +200,8 @@
       },
       "delete": {
         "summary": "Baja Lógica de Usuario",
-        "description": "Configura el estado a inactivo y deshabilita sus credenciales.",
+        "description": "Configura el estado a inactivo y deshabilita sus credenciales. Requiere JWT.",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -186,6 +213,7 @@
     "/index.php?action=credential": {
       "get": {
         "summary": "Listar Credenciales Activas",
+        "security": [{"bearerAuth": []}],
         "description": "Devuelve las credenciales vigentes e históricas activas. Si están vencidas, oculta DNI y sellos.",
         "responses": {
           "200": { "description": "Lista de credenciales obtenida." }
@@ -193,6 +221,7 @@
       },
       "post": {
         "summary": "Emitir Nueva Credencial",
+        "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
           "content": {
@@ -217,6 +246,7 @@
     "/index.php?action=credential&id={id}": {
       "get": {
         "summary": "Ver Detalle de Credencial",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -226,6 +256,7 @@
       },
       "put": {
         "summary": "Actualizar Credencial",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -249,6 +280,7 @@
       },
       "delete": {
         "summary": "Baja de Credencial",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -261,6 +293,7 @@
       "post": {
         "summary": "Renovación Inteligente",
         "description": "Renueva la credencial. Si está vencida suma 1 año desde hoy; si sigue vigente suma 1 año a partir de su vencimiento previo.",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -272,6 +305,7 @@
     "/index.php?action=credential&sub=alerts": {
       "get": {
         "summary": "Alertas de Vencimiento",
+        "security": [{"bearerAuth": []}],
         "description": "Devuelve las credenciales vigentes que expiran en los próximos 30 días.",
         "responses": {
           "200": { "description": "Lista de alertas de vencimiento obtenida." }
@@ -281,7 +315,8 @@
     "/index.php?action=message": {
       "get": {
         "summary": "Listar Consultas",
-        "description": "Devuelve las consultas. Para administradores retorna todas; para usuarios comunes solo las propias.",
+        "description": "Devuelve las consultas. Para administradores retorna todas; para usuarios comunes solo las propias. Requiere JWT.",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id_usuario", "in": "query", "required": false, "schema": { "type": "integer" } },
           { "name": "rol", "in": "query", "required": false, "schema": { "type": "string" } }
@@ -292,6 +327,7 @@
       },
       "post": {
         "summary": "Enviar Consulta",
+        "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
           "content": {
@@ -314,7 +350,8 @@
     "/index.php?action=message&id={id}": {
       "put": {
         "summary": "Responder Consulta",
-        "description": "Registra una respuesta a la consulta y cambia su estado a Respondido.",
+        "description": "Registra una respuesta a la consulta y cambia su estado a Respondido. Requiere JWT.",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -340,7 +377,8 @@
     "/index.php?action=history": {
       "get": {
         "summary": "Historial de Auditoría",
-        "description": "Devuelve la bitácora completa de acciones administrativas (solo admin).",
+        "description": "Devuelve la bitácora completa de acciones administrativas (solo admin). Requiere JWT.",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "rol", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
@@ -353,6 +391,7 @@
     "/index.php?action=sello": {
       "get": {
         "summary": "Listar Biblioteca de Sellos",
+        "security": [{"bearerAuth": []}],
         "description": "Devuelve todos los sellos predefinidos con nombre, imagen y descripción.",
         "responses": {
           "200": { "description": "Lista de sellos obtenida." }
@@ -361,6 +400,7 @@
       "post": {
         "summary": "Agregar Sello",
         "description": "Crea un nuevo sello en la biblioteca. Los sellos se almacenan con nombre e imagen_url.",
+        "security": [{"bearerAuth": []}],
         "requestBody": {
           "required": true,
           "content": {
@@ -385,6 +425,7 @@
     "/index.php?action=sello&id={id}": {
       "put": {
         "summary": "Editar Sello",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -409,6 +450,7 @@
       },
       "delete": {
         "summary": "Eliminar Sello",
+        "security": [{"bearerAuth": []}],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
@@ -419,6 +461,14 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT obtenido al iniciar sesión. Hacé clic en Authorize y pegá el token."
+      }
+    },
     "schemas": {
       "Sello": {
         "type": "object",

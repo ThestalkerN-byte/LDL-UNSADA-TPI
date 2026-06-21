@@ -3,6 +3,8 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Entity\History;
+use App\Security\UserContext;
+use App\Validation\ValidationHelper;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -106,6 +108,13 @@ class UserController {
                 $this->responder(400, 'error', "El campo '$field' es obligatorio.");
                 return;
             }
+        }
+
+        // Validación de fortaleza de contraseña
+        $passwordError = ValidationHelper::password('contraseña', $data['password']);
+        if ($passwordError !== null) {
+            $this->responder(400, 'error', $passwordError);
+            return;
         }
 
         /** @var \App\Repository\UserRepository $userRepo */
@@ -256,12 +265,12 @@ class UserController {
 
     /**
      * Helper para registrar auditoría en la tabla Historial.
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION['id_usuario'].
+     * El AuthMiddleware setea UserContext antes de llegar al controlador.
      */
     private function registrarHistorial(string $accion): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        $adminId = $_SESSION['id_usuario'] ?? $_GET['admin_id'] ?? null;
+        $adminId = UserContext::getId() ?? $_GET['admin_id'] ?? null;
         $admin = null;
         if ($adminId) {
             $admin = $this->em->getRepository(User::class)->find((int)$adminId);

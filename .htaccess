@@ -1,0 +1,29 @@
+# ───────────────────────────────────────────────
+# SEGURIDAD — LDL-UNSADA-TPI
+# ───────────────────────────────────────────────
+# Bloquea acceso directo a archivos y directorios
+# sensibles desde la web.
+#
+# Los archivos PHP incluidos vía require/include
+# NO se ven afectados — solo peticiones HTTP.
+# ───────────────────────────────────────────────
+
+# --- Bloquear archivos de entorno y configuración ---
+# Evita que .env, composer.*, etc. sean servidos
+# swagger.json queda accesible para la documentación de la API.
+<FilesMatch "\.(env|env\.example|md|lock|log)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "composer\.(json|lock)$">
+    Require all denied
+</FilesMatch>
+
+# --- Bloquear directorios internos ---
+# PHP source, config, vendor y data NO deben ser
+# accesibles directamente desde el navegador
+RedirectMatch 404 /(vendor/|src/|config/|data/)(.*)$
+
+# --- Deshabilitar listado de directorios ---
+Options -Indexes
+
+
