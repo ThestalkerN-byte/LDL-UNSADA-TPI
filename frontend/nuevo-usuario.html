@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="style.css">
+    <script src="js/api.js"></script>
 </head>
 <body style="background-color: #F8F9FA;">
 
@@ -195,8 +196,7 @@
         // Cargar sellos disponibles
         async function cargarSellosDisponibles() {
             try {
-                const response = await fetch('../index.php?action=sello');
-                const result = await response.json();
+                const result = await api('../index.php?action=sello');
                 if (result.status === 'success') {
                     sellosDisponibles = result.data.filter(s => s.visible);
                     const container = document.getElementById('sellosCheckboxGrid');
@@ -332,20 +332,16 @@
                     foto_perfil: fotoBase64
                 };
 
-                const userResponse = await fetch('../index.php?action=user', {
+                const userResult = await api('../index.php?action=user', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userData)
                 });
-                
-                const userResult = await userResponse.json();
 
                 if (userResult.status === 'success') {
                     // Crear credencial si se proporcionó fecha de vencimiento
                     if (fechaVencimiento) {
-                        const credResponse = await fetch('../index.php?action=credential', {
+                        await api('../index.php?action=credential', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 id_usuario: userResult.data.id,
                                 fecha_vencimiento: fechaVencimiento,
@@ -418,8 +414,7 @@
         lista.innerHTML = '';
         
         try {
-            const response = await fetch('../index.php?action=credential&sub=alerts');
-            const result = await response.json();
+            const result = await api('../index.php?action=credential&sub=alerts');
             
             if (result.status === 'success') {
                 const alertasData = result.data;

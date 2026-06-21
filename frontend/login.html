@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@300;400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="js/api.js"></script>
 </head>
 <body>
     <div class="container vh-100 d-flex justify-content-center align-items-center">
@@ -109,20 +110,18 @@
         }
 
         try {
-            const response = await fetch('../index.php?action=login', {
+            const result = await api('../index.php?action=login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     identificador: identificador,
                     password: password
                 })
             });
-
-            const result = await response.json();
             console.log('Login response:', result);
 
-            if (result.status === 'success') {
+            if (result && result.status === 'success') {
                 sessionStorage.setItem('usuario', JSON.stringify(result.data));
+                sessionStorage.setItem('jwt_token', result.data.token);
 
                 const rememberIsChecked = document.getElementById('rememberCheck').checked;
                 if (rememberIsChecked) {
@@ -138,7 +137,7 @@
                 }
             } else {
                 // Reemplazo del alert de error de credenciales
-                cajaError.textContent = `❌ ${result.message}`;
+                cajaError.textContent = `❌ ${result ? result.message : 'Error desconocido'}`;
                 cajaError.classList.remove('d-none');
             }
         } catch (error) {

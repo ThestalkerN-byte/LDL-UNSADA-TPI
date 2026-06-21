@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Credencial Digital Institucional</title>
     <link rel="stylesheet" href="style.css?v=2">
+    <script src="js/api.js"></script>
 </head>
 <body>
 
@@ -113,9 +114,7 @@
             const btnFlipEl = document.getElementById('btnFlip');
 
             try {
-                // Cargar credencial del usuario desde el backend (solo la suya)
-                const response = await fetch(`../index.php?action=credential&id_usuario=${usuario.id}`);
-                const result = await response.json();
+                const result = await api(`../index.php?action=credential&id_usuario=${usuario.id}`);
 
                 if (result.status === 'success') {
                     const credencial = result.data[0] ?? null;
@@ -131,8 +130,9 @@
                         document.querySelector('.user-info p:nth-child(6)').textContent = usuario.dni || '';
                         document.querySelector('.user-info p:nth-child(8)').textContent = usuario.rol?.toUpperCase() || '';
                         
-                        const fechaVenc = new Date(credencial.fecha_vencimiento);
-                        document.querySelector('.user-info p:nth-child(10)').textContent = fechaVenc.toLocaleDateString('es-AR');
+                        // Fix timezone shift: parse string directly to avoid GMT offsets
+                        const parts = credencial.fecha_vencimiento.split('T')[0].split('-');
+                        document.querySelector('.user-info p:nth-child(10)').textContent = `${parts[2]}/${parts[1]}/${parts[0]}`;
 
                         // Actualizar reverso
                         document.querySelector('.contact-info p:nth-child(2)').innerHTML = (usuario.direccion || 'No especificada').replace(',', '<br>');
@@ -188,8 +188,7 @@
 
             // Verificar si hay respuestas nuevas del administrador
                 try {
-                    const respuestaMensajes = await fetch(`../index.php?action=message&id_usuario=${usuario.id}&rol=user`);
-                    const resultadoMensajes = await respuestaMensajes.json();
+                    const resultadoMensajes = await api(`../index.php?action=message&id_usuario=${usuario.id}&rol=user`);
                     
                     if (resultadoMensajes.status === 'success') {
                         // Contamos cuántos mensajes del usuario ya tienen una respuesta del admin
