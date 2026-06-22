@@ -176,11 +176,13 @@ class MessageController {
      * Serializa la entidad Message a un formato JSON friendly.
      */
     private function serializeMessage(Message $m): array {
+        // El usuario puede ser null si fue dado de baja (borrado lógico/físico con ON DELETE SET NULL)
+        $user = $m->getUser();
         return [
             'id'              => $m->getId(),
-            'id_usuario'      => $m->getUser()->getId(),
-            'usuario_nombre'  => $m->getUser()->getNombre() . ' ' . $m->getUser()->getApellido(),
-            'usuario_dni'     => $m->getUser()->getDni(),
+            'id_usuario'      => $user?->getId(),
+            'usuario_nombre'  => $user ? ($user->getNombre() . ' ' . $user->getApellido()) : 'Usuario eliminado',
+            'usuario_dni'     => $user?->getDni() ?? 'N/A',
             'contenido'       => $m->getContenido(),
             'fecha'           => $m->getFecha()->format('Y-m-d H:i:s'),
             'respuesta'       => $m->getRespuesta(),

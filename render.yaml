@@ -1,0 +1,31 @@
+﻿services:
+  - type: web
+    name: ldl-unsada-tpi
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free                   # Plan gratuito de Render
+    region: oregon               # us-west-2 (más cercana)
+    branch: main                 # rama principal del repositorio
+    healthCheckPath: /index.php  # Render verifica que el servicio responde
+
+    # Variables de entorno en Render:
+    # ⚠ NO poner valores reales aquí — configurarlos en el dashboard de Render
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: DB_DRIVER
+        value: pdo_mysql
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_CHARSET
+        value: utf8mb4
+      - key: DB_SSL
+        value: REQUIRED
+      - key: JWT_EXPIRY
+        value: "3600"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: MAIL_ENABLED
+        value: "false"           # Cambiar a "true" cuando se configure SMTP

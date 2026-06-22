@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Entity\User;
 use App\RateLimiting\RateLimiter;
 use App\Security\JwtService;
+use App\Service\EmailService;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -179,7 +180,7 @@ class AuthController {
 
         /** @var \App\Repository\UserRepository $userRepo */
         $userRepo = $this->em->getRepository(User::class);
-        
+
         // Buscar por usuario o DNI primero (solo activos)
         $user = $userRepo->findByUsuarioODni($identificador);
         if (!$user) {
@@ -192,21 +193,45 @@ class AuthController {
             return;
         }
 
-        // Generar un código numérico aleatorio de 4 dígitos
+        // Generar código numérico aleatorio de 4 dígitos
         $codigo = (string)mt_rand(1000, 9999);
 
-        // Guardar el código y usuario en la sesión para validarlo en el siguiente paso
+        // Guardar código y usuario en sesión para validarlo en el siguiente paso
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
         $_SESSION['recovery_code']    = $codigo;
         $_SESSION['recovery_user_id'] = $user->getId();
 
-        // Respondemos con éxito e incluimos el código en la respuesta para facilitar pruebas locales sin correo real.
-        $this->responder(200, 'success', 'Código de recuperación generado.', [
-            'codigo_simulado' => $codigo,
-            'email'           => $user->getEmail()
-        ]);
+        // Intentar enviar el código por email (si el servicio está configurado)
+        $emailService = new EmailService();
+
+        if ($emailService->isEnabled()) {
+            // ─── Servicio SMTP configurado: envía el email real ────────────────
+            $enviado = $emailService->sendRecoveryCode(
+                $user->getEmail(),
+                $codigo,
+                $user->getNombre()
+            );
+
+            if ($enviado) {
+                // Éxito: no se incluye el código en la respuesta por seguridad
+                $this->responder(200, 'success', 'Código enviado. Revisá tu correo electrónico.', [
+                    'email' => $this->maskEmail($user->getEmail())
+                ]);
+            } else {
+                // El envío falló por error SMTP (ya quedó logueado en error_log)
+                $this->responder(500, 'error', 'No se pudo enviar el email de recuperación. Intentá nuevamente más tarde.');
+            }
+        } else {
+            // ─── Servicio SMTP no configurado todavía ─────────────────────────
+            // Cuando el cliente provea las credenciales SMTP, configurar las
+            // variables MAIL_* en .env y el sistema comenzará a enviar emails.
+            $this->responder(503, 'error',
+                'El sistema de recuperación por email aún no está configurado. ' .
+                'Contactá al administrador del sistema.'
+            );
+        }
     }
 
     // =========================================================================
@@ -282,5 +307,16 @@ class AuthController {
             'data'    => $data,
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * Enmascara parcialmente un email para mostrarlo al usuario sin exponerlo completo.
+     * Ejemplo: juan.perez@gmail.com → j***@gmail.com
+     */
+    private function maskEmail(string $email): string
+    {
+        [$localPart, $domain] = explode('@', $email, 2);
+        $maskedLocal = substr($localPart, 0, 1) . str_repeat('*', max(3, strlen($localPart) - 1));
+        return $maskedLocal . '@' . $domain;
     }
 }

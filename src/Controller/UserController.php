@@ -252,6 +252,14 @@ class UserController {
             return;
         }
 
+        // Desvincular mensajes del usuario antes de la baja lógica.
+        // Esto previene errores de FK en bases de datos con restricción RESTRICT activa.
+        // Los mensajes se conservan en la tabla con id_usuario = NULL (trazabilidad).
+        $mensajes = $this->em->getRepository(\App\Entity\Message::class)->findBy(['user' => $user]);
+        foreach ($mensajes as $mensaje) {
+            $mensaje->setUser(null);
+        }
+
         // Baja lógica: no se elimina el registro, solo se marca como inactivo
         $user->setEstado(false);
 

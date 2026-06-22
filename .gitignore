@@ -3,6 +3,11 @@
 
 # Archivos de configuración de entorno (contienen credenciales reales)
 .env
+.env.local
+.env.*.local
 
-# NO ignorar .env.example (es el template público)
-# .env.example
+# El .env.example SÍ va al repo (es la plantilla pública sin credenciales)
+!.env.example
+
+# Script de creación de admin (datos sensibles, nunca al repo)
+create_admin.sql

@@ -94,7 +94,8 @@
                 const result = await response.json();
                 
                 if (result.status === 'success') {
-                    mostrarMensaje(`✅ Código enviado: ${result.data.codigo_simulado}`, 'success');
+                    const emailMostrado = result.data.email || 'tu correo registrado';
+                    mostrarMensaje(`✅ Código enviado a ${emailMostrado}. Revisá tu bandeja de entrada (y la carpeta de spam).`, 'success');
                     
                     // Mostrar paso 2
                     document.getElementById('formRecuperacion').style.display = 'none';

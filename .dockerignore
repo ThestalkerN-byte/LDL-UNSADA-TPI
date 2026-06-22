@@ -1,0 +1,25 @@
+﻿# Dependencias (se instalan dentro del contenedor con composer install)
+vendor/
+
+# Variables de entorno con datos reales (nunca en la imagen)
+.env
+
+# Git
+.git/
+.gitignore
+
+# Archivos de desarrollo local
+*.log
+*.cache
+
+# Script de admin (no debe incluirse en la imagen)
+create_admin.sql
+
+# Documentación
+docs/
+README.MD
+
+# Docker files en sí (no hace falta copiarlos dentro del contenedor)
+Dockerfile
+docker-compose.yml
+.dockerignore
