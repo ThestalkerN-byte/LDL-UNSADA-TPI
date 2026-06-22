@@ -340,8 +340,8 @@ body {
 
 .btn-admin-secondary {
     background: transparent;
-    color: (--icb-blue);
-    border: 1.5px  (--icb-blue);
+    color: var(--icb-blue);
+    border: 1.5px solid var(--icb-blue);
     padding: 12px 28px;
     font-size: 15px;
     font-weight: 600;
@@ -424,7 +424,7 @@ body {
 
 /* Variables y reset básico */
 :root {
-    --primary-color: #00154a; 
+    --primary-color: var(--icb-blue); 
     --bg-color: #e5e7eb; 
     --text-color: #333;
     --danger-color: #ff5252;
@@ -449,11 +449,19 @@ header {
     background-color: var(--primary-color);
     padding: 15px 20px;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     color: white;
     width: 100%;
     box-sizing: border-box;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 800px;
 }
 
 .btn-header {
@@ -685,14 +693,22 @@ main {
     transform: scale(0.95);
 }
 
-/* Pie de página restaurado */
 footer {
     background-color: var(--primary-color);
     padding: 20px 30px;
     display: flex;
-    justify-content: flex-start; /* Alinea el botón a la izquierda como querías */
+    justify-content: center;
     align-items: center;
     width: 100%;
+    box-sizing: border-box;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    width: 100%;
+    max-width: 800px;
 }
 
 .btn-footer {
@@ -795,10 +811,11 @@ footer {
     max-width: 500px;
     width: 100%;
     padding: 20px;
+    border-radius: 28px;
 }
 
 .consulta-title {
-    font-family: 'Playfair Display', serif; 
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 1.8rem;
     color: var(--icb-blue);
