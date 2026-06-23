@@ -16,10 +16,12 @@ class Message {
 
     /**
      * El usuario que creó la consulta.
+     * Nullable: si el usuario es dado de baja (borrado lógico o físico),
+     * los mensajes se conservan con user = null para trazabilidad.
      */
     #[ORM\ManyToOne(targetEntity: User::class)]
-    #[ORM\JoinColumn(name: "id_usuario", referencedColumnName: "id", nullable: false)]
-    private User $user;
+    #[ORM\JoinColumn(name: "id_usuario", referencedColumnName: "id", nullable: true, onDelete: "SET NULL")]
+    private ?User $user = null;
 
     #[ORM\Column(type: "text")]
     private string $contenido;
@@ -46,8 +48,8 @@ class Message {
 
     public function getId(): int { return $this->id; }
 
-    public function getUser(): User { return $this->user; }
-    public function setUser(User $user): void { $this->user = $user; }
+    public function getUser(): ?User { return $this->user; }
+    public function setUser(?User $user): void { $this->user = $user; }
 
     public function getContenido(): string { return $this->contenido; }
     public function setContenido(string $contenido): void { $this->contenido = $contenido; }
