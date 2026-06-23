@@ -9,7 +9,8 @@
     healthCheckPath: /index.php  # Render verifica que el servicio responde
 
     # Variables de entorno en Render:
-    # ⚠ NO poner valores reales aquí — configurarlos en el dashboard de Render
+    # ⚠ IMPORTANTE: Configurar estas variables en el dashboard de Render
+    # con los valores reales de tu base de datos externa
     envVars:
       - key: APP_ENV
         value: production
@@ -17,12 +18,22 @@
         value: "false"
       - key: DB_DRIVER
         value: pdo_mysql
+      - key: DB_HOST
+        value: "TU_DB_HOST_RENDER"     # ⚠ Configurar en dashboard de Render
       - key: DB_PORT
         value: "3306"
+      - key: DB_NAME
+        value: "TU_DB_NAME_RENDER"     # ⚠ Configurar en dashboard de Render
+      - key: DB_USER
+        value: "TU_DB_USER_RENDER"     # ⚠ Configurar en dashboard de Render
+      - key: DB_PASS
+        value: "TU_DB_PASS_RENDER"     # ⚠ Configurar en dashboard de Render
       - key: DB_CHARSET
         value: utf8mb4
       - key: DB_SSL
         value: REQUIRED
+      - key: JWT_SECRET
+        value: "TU_JWT_SECRET_RENDER"  # ⚠ Configurar en dashboard de Render
       - key: JWT_EXPIRY
         value: "3600"
       - key: CORS_ORIGIN
