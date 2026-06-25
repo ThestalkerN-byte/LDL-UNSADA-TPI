@@ -1,0 +1,68 @@
+﻿# ──────────────────────────────────────────────────────────────
+# docker-compose.yml — LDL-UNSADA-TPI
+# Para desarrollo local: levanta la app PHP/Apache + MySQL
+# ──────────────────────────────────────────────────────────────
+# Uso:
+#   docker-compose up --build    → Primera vez (construye imagen)
+#   docker-compose up            → Inicios siguientes
+#   docker-compose down          → Apagar
+#   docker-compose down -v       → Apagar y eliminar datos de la BD
+# ──────────────────────────────────────────────────────────────
+services:
+
+  # ── Aplicación PHP + Apache ──────────────────────────────────
+  app:
+    build: .
+    container_name: ldl_app
+    ports:
+      - "8080:80"          # Acceder en http://localhost:8080
+    volumes:
+      - .:/var/www/html    # Monta el código local (hot reload)
+      - /var/www/html/vendor  # Excluye vendor del montaje (usa el del build)
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "true"
+      # Base de datos (apunta al servicio 'db' de este compose)
+      DB_DRIVER: pdo_mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ldl_db
+      DB_USER: ldl_user
+      DB_PASS: ldl_password
+      DB_CHARSET: utf8mb4
+      DB_SSL: NONE
+      # JWT
+      JWT_SECRET: local-dev-secret-cambiar-en-produccion
+      JWT_EXPIRY: 3600
+      # CORS
+      CORS_ORIGIN: "*"
+      # Email (deshabilitado en desarrollo por defecto)
+      MAIL_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Base de Datos MySQL 8.0 ──────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: ldl_db
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: ldl_db
+      MYSQL_USER: ldl_user
+      MYSQL_PASSWORD: ldl_password
+    ports:
+      - "3307:3306"        # Acceso externo en puerto 3307 (evita conflicto con MySQL local)
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "ldl_user", "-pldl_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  db_data:
+    name: ldl_db_data

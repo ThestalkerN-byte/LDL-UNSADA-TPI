@@ -2,6 +2,9 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\RateLimiting\RateLimiter;
+use App\Security\JwtService;
+use App\Service\EmailService;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -10,13 +13,23 @@ use Doctrine\ORM\EntityManagerInterface;
  * Maneja Login, Logout y Recuperación de contraseña.
  * Recibe el EntityManager por constructor (Inyección de Dependencias).
  * Siempre responde con JSON estandarizado: { "status", "message", "data" }.
+ *
+ * MIGRACIÓN A JWT:
+ *   El login ahora devuelve un JWT en el campo "token" de la respuesta.
+ *   El frontend debe guardar este token y enviarlo en cada request
+ *   como header "Authorization: Bearer <token>".
+ *   El logout es stateless (el frontend solo descarta el token).
+ *   La sesión PHP sigue usándose solo para el flujo de recuperación
+ *   de contraseña (recovery code en $_SESSION).
  */
 class AuthController {
 
     private EntityManagerInterface $em;
+    private JwtService $jwtService;
 
     public function __construct(EntityManagerInterface $em) {
         $this->em = $em;
+        $this->jwtService = new JwtService();
     }
 
     // =========================================================================
@@ -24,12 +37,20 @@ class AuthController {
     // =========================================================================
 
     /**
-     * Autentica al usuario contra la base de datos.
+     * Autentica al usuario contra la base de datos y devuelve un JWT.
      *
      * Permite identificarse con 'usuario' o 'dni' en el mismo campo.
-     * La validación de la contraseña se hace con password_verify() en PHP,
-     * NUNCA comparando texto plano ni en el SQL.
-     * Al autenticarse, abre sesión segura y guarda id y rol en $_SESSION.
+     * La validación de la contraseña se hace con password_verify() en PHP.
+     *
+     * RESPUESTA (cambió — ahora incluye token JWT):
+     *   {
+     *     "status": "success",
+     *     "message": "Login exitoso.",
+     *     "data": { "token": "eyJ...", "id": 1, "usuario": "...", "rol": "..." }
+     *   }
+     *
+     * El frontend debe guardar "token" y enviarlo en cada request como
+     *   Authorization: Bearer eyJ...
      */
     public function login(): void {
 
@@ -39,47 +60,55 @@ class AuthController {
             return;
         }
 
-        // 2. Decodifica el body JSON que envía el Frontend
+        // 2. Rate limiting: máximo 5 intentos por IP cada 60 segundos
+        $rateLimiter = new RateLimiter();
+        $ip          = $rateLimiter->getClientIp();
+        $rateCheck   = $rateLimiter->check("login:{$ip}", max: 5, window: 60);
+        if ($rateCheck !== null) {
+            $this->responder($rateCheck['code'], 'error', $rateCheck['error']);
+            return;
+        }
+
+        // 3. Decodifica el body JSON que envía el Frontend
         $data       = json_decode(file_get_contents('php://input'), true);
         $identificador = trim($data['identificador'] ?? '');
         $password      = trim($data['password'] ?? '');
 
-        // 3. Valida que no vengan vacíos
+        // 4. Valida que no vengan vacíos
         if (empty($identificador) || empty($password)) {
             $this->responder(400, 'error', 'El identificador y la contraseña son obligatorios.');
             return;
         }
 
-        // 4. Busca el usuario en la BD por 'usuario' o 'dni' usando el Repositorio
+        // 5. Busca el usuario en la BD por 'usuario' o 'dni' usando el Repositorio
         /** @var \App\Repository\UserRepository $userRepo */
         $userRepo = $this->em->getRepository(User::class);
         $user     = $userRepo->findByUsuarioODni($identificador);
 
-        // 5. Si no existe o está dado de baja (borrado lógico), rechaza
+        // 6. Si no existe o está dado de baja (borrado lógico), rechaza
         if (!$user || !$user->isEstado()) {
             $this->responder(401, 'error', 'Credenciales inválidas o usuario inactivo.');
             return;
         }
 
-        // 6. Valida el hash de la contraseña con password_verify()
+        // 7. Valida el hash de la contraseña con password_verify()
         //    La contraseña NUNCA viaja ni se guarda como texto plano.
         if (!password_verify($password, $user->getPassword())) {
             $this->responder(401, 'error', 'Credenciales inválidas o usuario inactivo.');
             return;
         }
 
-        // 7. Abre sesión segura y registra los datos necesarios en $_SESSION
-        //    Estos datos son el "carnet digital" interno que usa el resto de los módulos.
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        session_regenerate_id(true); // Previene Session Fixation
+        // 8. Genera JWT (stateless — no se usa sesión PHP)
+        $token = $this->jwtService->generateToken(
+            userId: $user->getId(),
+            usuario: $user->getUsuario(),
+            rol: $user->getRol()
+        );
 
-        $_SESSION['id_usuario'] = $user->getId();
-        $_SESSION['rol']        = $user->getRol(); // 'admin' o 'user'
-
-        // 8. Responde con los datos que el Frontend necesita para su vista
+        // 9. Responde con el token + datos del usuario
+        //    El frontend guarda el token y lo envía como Authorization header.
         $this->responder(200, 'success', 'Login exitoso.', [
+            'token'       => $token,
             'id'          => $user->getId(),
             'usuario'     => $user->getUsuario(),
             'nombre'      => $user->getNombre(),
@@ -98,10 +127,14 @@ class AuthController {
     // =========================================================================
 
     /**
-     * Cierra la sesión del usuario activo.
+     * Logout stateless.
      *
-     * Limpia el array $_SESSION, destruye la sesión en el servidor
-     * e invalida la cookie de sesión en el cliente.
+     * Con JWT el logout es responsabilidad del frontend: solo descarta el token.
+     * Este endpoint existe para compatibilidad: si el frontend lo llama,
+     * responde éxito sin hacer nada (no hay sesión que destruir).
+     *
+     * NOTA: el frontend DEBE eliminar el token almacenado (localStorage/sessionStorage)
+     * y redirigir al login.
      */
     public function logout(): void {
 
@@ -110,27 +143,8 @@ class AuthController {
             return;
         }
 
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
-        // Limpia todos los datos de sesión del servidor
-        $_SESSION = [];
-
-        // Invalida la cookie de sesión en el navegador del cliente
-        if (ini_get('session.use_cookies')) {
-            $params = session_get_cookie_params();
-            setcookie(
-                session_name(), '',
-                time() - 42000,
-                $params['path'], $params['domain'],
-                $params['secure'], $params['httponly']
-            );
-        }
-
-        // Destruye la sesión en el servidor
-        session_destroy();
-
+        // JWT es stateless — no hay nada que destruir del lado del servidor.
+        // El frontend debe descartar el token.
         $this->responder(200, 'success', 'Sesión cerrada correctamente.');
     }
 
@@ -147,6 +161,15 @@ class AuthController {
             return;
         }
 
+        // Rate limiting: máximo 3 intentos por IP cada 120 segundos
+        $rateLimiter = new RateLimiter();
+        $ip          = $rateLimiter->getClientIp();
+        $rateCheck   = $rateLimiter->check("recover:{$ip}", max: 3, window: 120);
+        if ($rateCheck !== null) {
+            $this->responder($rateCheck['code'], 'error', $rateCheck['error']);
+            return;
+        }
+
         $data = json_decode(file_get_contents('php://input'), true);
         $identificador = trim($data['identificador'] ?? '');
 
@@ -157,7 +180,7 @@ class AuthController {
 
         /** @var \App\Repository\UserRepository $userRepo */
         $userRepo = $this->em->getRepository(User::class);
-        
+
         // Buscar por usuario o DNI primero (solo activos)
         $user = $userRepo->findByUsuarioODni($identificador);
         if (!$user) {
@@ -170,21 +193,45 @@ class AuthController {
             return;
         }
 
-        // Generar un código numérico aleatorio de 4 dígitos
+        // Generar código numérico aleatorio de 4 dígitos
         $codigo = (string)mt_rand(1000, 9999);
 
-        // Guardar el código y usuario en la sesión para validarlo en el siguiente paso
+        // Guardar código y usuario en sesión para validarlo en el siguiente paso
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
         $_SESSION['recovery_code']    = $codigo;
         $_SESSION['recovery_user_id'] = $user->getId();
 
-        // Respondemos con éxito e incluimos el código en la respuesta para facilitar pruebas locales sin correo real.
-        $this->responder(200, 'success', 'Código de recuperación generado.', [
-            'codigo_simulado' => $codigo,
-            'email'           => $user->getEmail()
-        ]);
+        // Intentar enviar el código por email (si el servicio está configurado)
+        $emailService = new EmailService();
+
+        if ($emailService->isEnabled()) {
+            // ─── Servicio SMTP configurado: envía el email real ────────────────
+            $enviado = $emailService->sendRecoveryCode(
+                $user->getEmail(),
+                $codigo,
+                $user->getNombre()
+            );
+
+            if ($enviado) {
+                // Éxito: no se incluye el código en la respuesta por seguridad
+                $this->responder(200, 'success', 'Código enviado. Revisá tu correo electrónico.', [
+                    'email' => $this->maskEmail($user->getEmail())
+                ]);
+            } else {
+                // El envío falló por error SMTP (ya quedó logueado en error_log)
+                $this->responder(500, 'error', 'No se pudo enviar el email de recuperación. Intentá nuevamente más tarde.');
+            }
+        } else {
+            // ─── Servicio SMTP no configurado todavía ─────────────────────────
+            // Cuando el cliente provea las credenciales SMTP, configurar las
+            // variables MAIL_* en .env y el sistema comenzará a enviar emails.
+            $this->responder(503, 'error',
+                'El sistema de recuperación por email aún no está configurado. ' .
+                'Contactá al administrador del sistema.'
+            );
+        }
     }
 
     // =========================================================================
@@ -260,5 +307,16 @@ class AuthController {
             'data'    => $data,
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * Enmascara parcialmente un email para mostrarlo al usuario sin exponerlo completo.
+     * Ejemplo: juan.perez@gmail.com → j***@gmail.com
+     */
+    private function maskEmail(string $email): string
+    {
+        [$localPart, $domain] = explode('@', $email, 2);
+        $maskedLocal = substr($localPart, 0, 1) . str_repeat('*', max(3, strlen($localPart) - 1));
+        return $maskedLocal . '@' . $domain;
     }
 }

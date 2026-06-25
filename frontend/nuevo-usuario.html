@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>I&B - Nuevo Usuario</title>
+    <title>ICB - Nuevo Usuario</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="style.css">
+    <script src="js/api.js"></script>
 </head>
 <body style="background-color: #F8F9FA;">
 
@@ -74,17 +75,24 @@
             <div class="admin-section">
                 <div class="section-title">INFORMACIÓN PERSONAL</div>
                 <div class="form-grid">
-                    <div class="form-field full-width">
-                        <label>Nombre y Apellido</label>
-                        <input type="text" id="nombre" placeholder="Ej: Juan Pérez">
-                    </div>
                     <div class="form-field">
-                        <label>DNI</label>
-                        <input type="text" id="dni" placeholder="Ej: 30.123.456">
+                        <label>Nombre(s) <span class="text-danger">*</span></label>
+                        <input type="text" id="nombre" class="form-control">
+                        <small class="text-danger d-none fw-bold mt-1" id="error-nombre" style="font-size: 0.75rem;">Este campo es obligatorio.</small>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Apellido(s) <span class="text-danger">*</span></label>
+                        <input type="text" id="apellido" class="form-control">
+                        <small class="text-danger d-none fw-bold mt-1" id="error-apellido" style="font-size: 0.75rem;">Este campo es obligatorio.</small>
+                </div>
+                    <div class="form-field">
+                        <label>DNI / Documento</label>
+                        <input type="text" id="dni" placeholder="Ej: 30123456" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                     <div class="form-field">
                         <label>Teléfono</label>
-                        <input type="text" id="telefono" placeholder="Ej: 11 2345-6789">
+                        <input type="text" id="telefono" placeholder="Ej: 1123456789" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                     </div>
                     <div class="form-field full-width">
                         <label>Dirección residencial</label>
@@ -102,10 +110,10 @@
 
             <div class="admin-section">
                 <div class="section-title">DATOS INSTITUCIONALES</div>
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label>Rol / Cargo</label>
-                            <input type="text" id="rol" placeholder="Ej: Ministro Ordenado Ejecutivo">
+                <div class="form-grid"> <div class="form-field">
+                        <label>Rol / Cargo <span class="text-danger">*</span></label>
+                        <input type="text" id="rol" class="form-control" placeholder="Ej: Pastor, Administrador, etc.">
+                        <small class="text-danger d-none fw-bold mt-1" id="error-rol" style="font-size: 0.75rem;">Este campo es obligatorio.</small>
                     </div>
                     <div class="form-field">
                         <label>Fecha de vencimiento (Credencial)</label>
@@ -117,20 +125,25 @@
             <div class="admin-section">
                 <div class="section-title">SELLOS DE LA CREDENCIAL</div>
                 <div class="row g-2 px-2" id="sellosCheckboxGrid">
-                    <!-- Rendered via JS -->
-                </div>
+                    </div>
             </div>
 
             <div class="admin-section">
                 <div class="section-title">CREDENCIALES DE ACCESO</div>
-                <div class="form-grid">
-                    <div class="form-field full-width">
-                        <label>Correo electrónico</label>
-                        <input type="email" id="email" placeholder="usuario@iglesia.com">
+                <div class="form-grid"> <div class="form-field full-width">
+                        <label>Correo electrónico <span class="text-danger">*</span></label>
+                        <input type="email" id="email" class="form-control">
+                        <small class="text-danger d-none fw-bold mt-1" id="error-email" style="font-size: 0.75rem;">Este campo es obligatorio.</small>
                     </div>
                     <div class="form-field full-width">
-                        <label>Contraseña</label>
-                        <input type="password" id="password" placeholder="Mínimo 6 caracteres">
+                        <label>Contraseña <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="password" id="password" class="form-control" placeholder="Mínimo 6 caracteres">
+                            <button class="btn btn-outline-secondary" type="button" id="btnTogglePass" style="border-color: #DEE2E6; background-color: white;">
+                                <i class="bi bi-eye-slash text-secondary" id="iconPass"></i>
+                            </button>
+                        </div>
+                        <small class="text-danger d-none fw-bold mt-1" id="error-password" style="font-size: 0.75rem;">Este campo es obligatorio.</small>
                     </div>
                 </div>
             </div>
@@ -183,8 +196,7 @@
         // Cargar sellos disponibles
         async function cargarSellosDisponibles() {
             try {
-                const response = await fetch('../index.php?action=sello');
-                const result = await response.json();
+                const result = await api('../index.php?action=sello');
                 if (result.status === 'success') {
                     sellosDisponibles = result.data.filter(s => s.visible);
                     const container = document.getElementById('sellosCheckboxGrid');
@@ -213,8 +225,37 @@
 
         document.addEventListener('DOMContentLoaded', cargarSellosDisponibles);
 
+        // Quitar errores al escribir
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('is-invalid', 'border-danger');
+                const errorMsg = document.getElementById(`error-${this.id}`);
+                if (errorMsg) errorMsg.classList.add('d-none');
+            });
+        });
+
+        // Funcionalidad del ojito de contraseña
+        const btnTogglePass = document.getElementById('btnTogglePass');
+        const inputPassword = document.getElementById('password');
+        const iconPass = document.getElementById('iconPass');
+
+        if (btnTogglePass && inputPassword) {
+            btnTogglePass.addEventListener('click', function() {
+                if (inputPassword.type === 'password') {
+                    inputPassword.type = 'text';
+                    iconPass.classList.replace('bi-eye-slash', 'bi-eye');
+                } else {
+                    inputPassword.type = 'password';
+                    iconPass.classList.replace('bi-eye', 'bi-eye-slash');
+                }
+            });
+        }
+
         document.getElementById('crearBtn').onclick = async () => {
-            const nombreCompleto = document.getElementById('nombre').value;
+            // Capturamos los campos por separado
+            const nombre = document.getElementById('nombre').value.trim();
+            const apellido = document.getElementById('apellido').value.trim();
+            
             const dni = document.getElementById('dni').value;
             const telefono = document.getElementById('telefono').value;
             const direccion = document.getElementById('direccion').value;
@@ -223,18 +264,46 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
-            if (!nombreCompleto || !rol || !email || !password) {
-                alert('⚠️ Por favor complete el Nombre, Rol, Email y Contraseña como mínimo.');
-                return;
+           const usuario = email.split('@')[0];
+
+            // 1. Limpiamos errores previos
+            const camposRequeridos = ['nombre', 'apellido', 'rol', 'email', 'password'];
+            camposRequeridos.forEach(id => {
+                const inputElement = document.getElementById(id);
+                const errorElement = document.getElementById(`error-${id}`);
+                if (inputElement) inputElement.classList.remove('is-invalid', 'border-danger');
+                if (errorElement) errorElement.classList.add('d-none');
+            });
+
+            // 2. Validamos uno por uno
+            let tieneErrores = false;
+            camposRequeridos.forEach(id => {
+                const inputElement = document.getElementById(id);
+                const errorElement = document.getElementById(`error-${id}`);
+                
+                if (inputElement && errorElement) {
+                    const valor = inputElement.value.trim();
+                    
+                    // Chequeo 1: ¿El campo está vacío?
+                    if (!valor) {
+                        inputElement.classList.add('is-invalid', 'border-danger');
+                        errorElement.textContent = 'Este campo es obligatorio.'; // Texto por defecto
+                        errorElement.classList.remove('d-none');
+                        tieneErrores = true;
+                    } 
+                    // Chequeo 2: Si es la contraseña, ¿tiene menos de 6 caracteres?
+                    else if (id === 'password' && valor.length < 6) {
+                        inputElement.classList.add('is-invalid', 'border-danger');
+                        errorElement.textContent = 'La contraseña debe tener al menos 6 caracteres.'; // Texto dinámico
+                        errorElement.classList.remove('d-none');
+                        tieneErrores = true;
+                    }
+                }
+            });
+
+            if (tieneErrores) {
+                return; // Frenamos todo si hay algún error
             }
-
-            // Separar nombre y apellido
-            const partes = nombreCompleto.trim().split(' ');
-            const nombre = partes[0] || '';
-            const apellido = partes.length > 1 ? partes.slice(1).join(' ') : nombreCompleto;
-
-            // Generar usuario desde el email
-            const usuario = email.split('@')[0];
 
             // Obtener sellos seleccionados
             const sellosSeleccionados = [];
@@ -263,20 +332,16 @@
                     foto_perfil: fotoBase64
                 };
 
-                const userResponse = await fetch('../index.php?action=user', {
+                const userResult = await api('../index.php?action=user', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userData)
                 });
-                
-                const userResult = await userResponse.json();
 
                 if (userResult.status === 'success') {
                     // Crear credencial si se proporcionó fecha de vencimiento
                     if (fechaVencimiento) {
-                        const credResponse = await fetch('../index.php?action=credential', {
+                        await api('../index.php?action=credential', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 id_usuario: userResult.data.id,
                                 fecha_vencimiento: fechaVencimiento,
@@ -285,10 +350,24 @@
                         });
                     }
 
-                    alert(`✅ Usuario ${nombreCompleto} creado exitosamente.`);
-                    window.location.href = 'admin-usuarios.html';
+                    // Modal de éxito 
+                    Swal.fire({
+                        title: '¡Usuario Creado!',
+                        text: 'El nuevo usuario fue guardado exitosamente.',
+                        icon: 'success',
+                        showConfirmButton: false,
+                        timer: 3000, // 3 segundos
+                        timerProgressBar: true
+                    }).then(() => {
+                        window.location.href = 'admin-usuarios.html';
+                    });
                 } else {
-                    alert(`❌ Error: ${userResult.message}`);
+                    Swal.fire({
+                        title: 'Error',
+                        text: userResult.message,
+                        icon: 'error',
+                        confirmButtonColor: '#0B2A4A'
+                    });
                 }
             } catch (error) {
                 console.error('Error al crear usuario:', error);
@@ -300,6 +379,7 @@
             window.location.href = 'admin-usuarios.html';
         };
     </script>
+
     <script>
         const btnOpen  = document.getElementById('btnOpenMenu');
         const btnClose = document.getElementById('btnCloseMenu');
@@ -334,8 +414,7 @@
         lista.innerHTML = '';
         
         try {
-            const response = await fetch('../index.php?action=credential&sub=alerts');
-            const result = await response.json();
+            const result = await api('../index.php?action=credential&sub=alerts');
             
             if (result.status === 'success') {
                 const alertasData = result.data;
@@ -387,5 +466,8 @@
 
     renderizarAlertas();
     </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 </body>
 </html>

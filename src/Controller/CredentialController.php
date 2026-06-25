@@ -6,6 +6,7 @@ use App\Service\AlertService;
 use App\Repository\CredentialRepository;
 use App\Entity\Credential;
 use App\Entity\User;
+use App\Security\UserContext;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -321,12 +322,11 @@ class CredentialController {
 
     /**
      * Helper para registrar auditoría.
+     *
+     * MIGRACIÓN JWT: ahora usa UserContext en vez de $_SESSION.
      */
     private function registrarHistorial(string $accion): void {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        $adminId = $_SESSION['id_usuario'] ?? $_GET['admin_id'] ?? null;
+        $adminId = UserContext::getId() ?? $_GET['admin_id'] ?? null;
         $admin = null;
         if ($adminId) {
             $admin = $this->em->getRepository(User::class)->find((int)$adminId);

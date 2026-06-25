@@ -1,2 +1,13 @@
 /vendor/
 /data/
+
+# Archivos de configuración de entorno (contienen credenciales reales)
+.env
+.env.local
+.env.*.local
+
+# El .env.example SÍ va al repo (es la plantilla pública sin credenciales)
+!.env.example
+
+# Script de creación de admin (datos sensibles, nunca al repo)
+create_admin.sql
