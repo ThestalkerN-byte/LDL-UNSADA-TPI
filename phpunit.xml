@@ -40,5 +40,6 @@
         <env name="SKIP_DB_INTEGRATION_TESTS" value="0"/>
         <env name="TEST_SERVER_HOST" value="127.0.0.1"/>
         <env name="TEST_SERVER_PORT" value="8099"/>
+        <ini name="error_reporting" value="E_ALL &amp; ~E_DEPRECATED &amp; ~E_USER_DEPRECATED" />
     </php>
 </phpunit>
