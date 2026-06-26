@@ -13,6 +13,9 @@
         <testsuite name="Authentication">
             <directory>tests/Authentication</directory>
         </testsuite>
+        <testsuite name="Search">
+            <directory>tests/Search</directory>
+        </testsuite>
         <testsuite name="AccessControl">
             <directory>tests/AccessControl</directory>
         </testsuite>
