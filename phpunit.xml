@@ -14,7 +14,10 @@
             <directory>tests/Authentication</directory>
         </testsuite>
         <testsuite name="Search">
-            <directory>tests/Search</directory>
+            <directory>tests/UserSearch</directory>
+        </testsuite>
+        <testsuite name="Sello">
+            <directory>tests/SelloManagement</directory>
         </testsuite>
         <testsuite name="AccessControl">
             <directory>tests/AccessControl</directory>

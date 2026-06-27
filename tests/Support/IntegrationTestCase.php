@@ -25,9 +25,6 @@ use PHPUnit\Framework\TestCase;
  *   Extender esta clase en lugar de TestCase.
  *   Los tests de integración heredan toda la infraestructura
  *   y solo necesitan escribir los métodos de test.
- *
- * @see AuthControllerTest
- * @see BuscadorTest
  */
 abstract class IntegrationTestCase extends TestCase
 {
@@ -41,6 +38,9 @@ abstract class IntegrationTestCase extends TestCase
     private static $serverProcess = null;
 
     private static string $baseUrl      = '';
+    private static string $serverHost   = '127.0.0.1';
+    private static string $serverPort   = '8099';
+    private static string $projectRoot  = '';
     private static ?EntityManagerInterface $em = null;
     private static bool   $dbAvailable  = false;
     private static string $skipReason   = 'Causa desconocida.';
@@ -57,7 +57,10 @@ abstract class IntegrationTestCase extends TestCase
         $projectRoot = dirname(__DIR__, 2);
         $host        = getenv('TEST_SERVER_HOST') ?: '127.0.0.1';
         $port        = getenv('TEST_SERVER_PORT') ?: '8099';
-        self::$baseUrl = "http://{$host}:{$port}";
+        self::$baseUrl    = "http://{$host}:{$port}";
+        self::$serverHost = $host;
+        self::$serverPort = $port;
+        self::$projectRoot = $projectRoot;
 
         if (getenv('SKIP_DB_INTEGRATION_TESTS') === '1') {
             self::$dbAvailable = false;
@@ -96,6 +99,12 @@ abstract class IntegrationTestCase extends TestCase
         // Limpia el rate limit antes de cada test para evitar acumulación
         // de intentos entre tests y recibir 429 en vez del código esperado.
         self::limpiarRateLimitCache();
+
+        // Health check: verifica que el servidor embebido sigue respondiendo.
+        // El servidor php -S puede caerse después de muchas conexiones SSL
+        // a Aiven (cada request abre una conexión nueva a la BD remota).
+        // Si no responde, lo reinicia automáticamente antes de continuar.
+        self::verificarYReiniciarServidor();
     }
 
     protected function tearDown(): void
@@ -181,6 +190,29 @@ abstract class IntegrationTestCase extends TestCase
     // =====================================================================
     // Infraestructura: servidor PHP embebido
     // =====================================================================
+
+    /**
+     * Verifica que el servidor embebido sigue respondiendo y lo reinicia
+     * si se cayó. El servidor php -S puede morir después de muchas
+     * conexiones a la base de datos remota (Aiven con SSL).
+     *
+     * Intenta conectar al puerto; si falla, mata el proceso anterior
+     * y arranca uno nuevo antes de que el test continúe.
+     */
+    private static function verificarYReiniciarServidor(): void
+    {
+        $conn = @fsockopen(self::$serverHost, (int) self::$serverPort, $errno, $errstr, 1.0);
+
+        if ($conn !== false) {
+            fclose($conn);
+            return; // El servidor responde — todo bien
+        }
+
+        // El servidor no responde: lo reinicia
+        self::stopBuiltInServer();
+        usleep(300_000); // 300 ms para liberar el puerto
+        self::startBuiltInServer(self::$projectRoot, self::$serverHost, self::$serverPort);
+    }
 
     private static function startBuiltInServer(string $projectRoot, string $host, string $port): void
     {
@@ -325,7 +357,7 @@ abstract class IntegrationTestCase extends TestCase
                 'header'        => implode("\r\n", $headers),
                 'content'       => json_encode($payload, JSON_UNESCAPED_UNICODE),
                 'ignore_errors' => true,
-                'timeout'       => 5,
+                'timeout'       => 10,
             ],
         ]);
 
@@ -357,7 +389,7 @@ abstract class IntegrationTestCase extends TestCase
                 'method'        => 'GET',
                 'header'        => implode("\r\n", $headers),
                 'ignore_errors' => true,
-                'timeout'       => 5,
+                'timeout'       => 10,
             ],
         ]);
 
@@ -385,6 +417,66 @@ abstract class IntegrationTestCase extends TestCase
         }
 
         return $body['data']['token'];
+    }
+
+    /**
+     * PUT JSON con ID en query string → [httpCode, body decodificado]
+     *
+     * @param string      $action  Valor del query param ?action=
+     * @param int         $id      ID del recurso a actualizar (&id={id})
+     * @param array       $payload Datos a enviar como JSON
+     * @param string|null $token   JWT para el header Authorization: Bearer
+     */
+    protected function putJson(string $action, int $id, array $payload, ?string $token = null): array
+    {
+        $headers = ['Content-Type: application/json'];
+        if ($token !== null) {
+            $headers[] = 'Authorization: Bearer ' . $token;
+        }
+
+        $url     = self::$baseUrl . '/index.php?action=' . $action . '&id=' . $id;
+        $context = stream_context_create([
+            'http' => [
+                'method'        => 'PUT',
+                'header'        => implode("\r\n", $headers),
+                'content'       => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                'ignore_errors' => true,
+                'timeout'       => 10,
+            ],
+        ]);
+
+        $body = file_get_contents($url, false, $context);
+
+        return $this->parsearRespuesta($body, $http_response_header ?? []);
+    }
+
+    /**
+     * DELETE con ID en query string → [httpCode, body decodificado]
+     *
+     * @param string      $action Valor del query param ?action=
+     * @param int         $id     ID del recurso a eliminar (&id={id})
+     * @param string|null $token  JWT para el header Authorization: Bearer
+     */
+    protected function deleteJson(string $action, int $id, ?string $token = null): array
+    {
+        $headers = ['Content-Type: application/json'];
+        if ($token !== null) {
+            $headers[] = 'Authorization: Bearer ' . $token;
+        }
+
+        $url     = self::$baseUrl . '/index.php?action=' . $action . '&id=' . $id;
+        $context = stream_context_create([
+            'http' => [
+                'method'        => 'DELETE',
+                'header'        => implode("\r\n", $headers),
+                'ignore_errors' => true,
+                'timeout'       => 10,
+            ],
+        ]);
+
+        $body = file_get_contents($url, false, $context);
+
+        return $this->parsearRespuesta($body, $http_response_header ?? []);
     }
 
     // =====================================================================

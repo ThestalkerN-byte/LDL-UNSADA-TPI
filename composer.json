@@ -33,6 +33,7 @@
     "scripts": {
         "test": "phpunit",
         "test:auth": "phpunit --testsuite Authentication",
-        "test:search": "phpunit --testsuite Search"
+        "test:search": "phpunit --testsuite Search",
+        "test:sello": "phpunit --testsuite Sello"
     }
 }
