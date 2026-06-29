@@ -28,10 +28,6 @@ use PHPUnit\Framework\Attributes\TestDox;
  *   test()     → crea sello/s via POST y registra sus IDs en $createdSelloIds
  *   tearDown() → borra los sellos via DELETE (antes de que parent borre el usuario)
  *
- * SELLO_007 — No tiene definición explícita en la planilla pero aparece
- * en la tabla de ejecución. Se infiere del user story ("Edición de datos")
- * como la edición de nombre y src de un sello existente.
- *
  * Mapeo con la planilla QA:
  *   SELLO_001 → testCrearSelloCorrectamenteDevuelve201
  *   SELLO_002 → testOcultarSelloActivoDevuelveVisibleFalse

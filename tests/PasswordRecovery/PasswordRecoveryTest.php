@@ -23,17 +23,46 @@ use PHPUnit\Framework\Attributes\TestDox;
  *
  * Requisito cubierto: RF02
  *
- * Nota sobre MAIL_ENABLED=false:
- *   En local el servidor no tiene SMTP configurado. El backend genera el
- *   recovery_code y lo guarda en sesión ANTES de intentar enviar el email,
- *   por lo que el código siempre existe en $_SESSION aunque el envío devuelva 503.
- *   Los tests que necesitan el código lo leen directamente del archivo de sesión.
+ * ─── Variables de entorno necesarias ────────────────────────────────────────
  *
- * Nota sobre cookies y sesión (RECUPERAR_003):
- *   El flujo recover_request → recover_reset mantiene estado vía $_SESSION de PHP.
- *   Para encadenar los dos requests con la misma sesión se usa un cookieJar temporal
- *   (archivo de cookies de cURL) que preserva el PHPSESSID entre llamadas.
- *   Este mecanismo es específico de esta suite y no forma parte de IntegrationTestCase.
+ *   MAIL_ENABLED=true          Activa el envío de emails en el backend.
+ *                              Con false, RECUPERAR_001 y RECUPERAR_003
+ *                              se saltean automáticamente.
+ *
+ *   MAILTRAP_API_TOKEN=<token> Token de la API HTTP de Mailtrap.
+ *                              Se obtiene en: https://mailtrap.io → API Tokens
+ *
+ *   MAILTRAP_INBOX_ID=<id>     ID numérico del inbox de Mailtrap.
+ *                              Se ve en la URL al abrir el inbox:
+ *                              https://mailtrap.io/inboxes/{id}/messages
+ *
+ * ─── Cómo configurar Mailtrap en el backend ─────────────────────────────────
+ *
+ *   En el .env del proyecto, apuntar el SMTP a Mailtrap:
+ *     MAIL_HOST=sandbox.smtp.mailtrap.io
+ *     MAIL_PORT=2525
+ *     MAIL_USERNAME=<usuario Mailtrap>
+ *     MAIL_PASSWORD=<contraseña Mailtrap>
+ *     MAIL_ENABLED=true
+ *
+ *   En el .env de tests (o en phpunit.xml como <env>), agregar:
+ *     MAILTRAP_API_TOKEN=<token>
+ *     MAILTRAP_INBOX_ID=<id>
+ *
+ * ─── Flujo de RECUPERAR_003 ──────────────────────────────────────────────────
+ *
+ *   1. Se vacía el inbox de Mailtrap (borra mensajes anteriores).
+ *   2. recover_request dispara el email con el código de 4 dígitos.
+ *   3. El test consulta la API de Mailtrap hasta recibir el mensaje (máx. 15 s).
+ *   4. Parsea el texto plano del email y extrae el código.
+ *   5. recover_reset usa ese código para cambiar la contraseña.
+ *   6. Verifica que el login con la nueva contraseña responde HTTP 200.
+ *
+ *   Nota sobre cookies y sesión:
+ *     El flujo recover_request → recover_reset mantiene estado vía $_SESSION.
+ *     postJson() usa file_get_contents, que no maneja cookies. Por eso
+ *     postJsonConSesion() usa cURL + cookieJar para compartir el PHPSESSID
+ *     entre los dos requests.
  */
 final class PasswordRecoveryTest extends IntegrationTestCase
 {
@@ -58,9 +87,11 @@ final class PasswordRecoveryTest extends IntegrationTestCase
     // =====================================================================
 
     #[Test]
-    #[TestDox('RECUPERAR_001 - La solicitud de recuperación con email registrado responde 200 o 503 (sin SMTP)')]
+    #[TestDox('RECUPERAR_001 - La solicitud de recuperación con email registrado responde 200 y devuelve el email ofuscado')]
     public function testSolicitudRecuperacionUsuarioRegistrado(): void
     {
+        $this->saltearSiSinSmtp('RECUPERAR_001');
+
         $usuario = $this->crearUsuarioDePrueba('Test123456');
 
         [$httpCode, $body] = $this->postJson(
@@ -68,29 +99,16 @@ final class PasswordRecoveryTest extends IntegrationTestCase
             ['identificador' => $usuario->getEmail()],
         );
 
-        /*
-         * La planilla QA espera HTTP 200.
-         * Con MAIL_ENABLED=false el backend puede responder 503 porque no tiene
-         * SMTP configurado, pero el proceso de recuperación sí se inicia.
-         * Aceptamos ambos códigos y verificamos el contrato de respuesta de cada uno.
-         */
-        $this->assertContains(
-            $httpCode,
-            [200, 503],
-            'Se esperaba HTTP 200 (email enviado) o 503 (SMTP no configurado).'
-        );
-
+        $this->assertSame(200, $httpCode, 'Se esperaba HTTP 200 con SMTP activo.');
         $this->assertArrayHasKey('status', $body);
+        $this->assertSame('success', $body['status']);
+        $this->assertStringContainsString('Código enviado', $body['message'] ?? '');
 
-        if ($httpCode === 200) {
-            $this->assertSame('success', $body['status']);
-            $this->assertStringContainsString('Código enviado', $body['message'] ?? '');
-        }
-
-        if ($httpCode === 503) {
-            $this->assertSame('error', $body['status']);
-            $this->assertStringContainsString('recuperación por email', $body['message'] ?? '');
-        }
+        // Verifica que la respuesta incluye el email ofuscado (ej. "t***@example.test")
+        $this->assertArrayHasKey('data', $body, 'La respuesta debe incluir "data" con el email ofuscado.');
+        $emailOfuscado = $body['data']['email'] ?? '';
+        $this->assertNotEmpty($emailOfuscado, 'El campo data.email no debe estar vacío.');
+        $this->assertStringContainsString('*', $emailOfuscado, 'El email en data debe estar ofuscado.');
     }
 
     // =====================================================================
@@ -112,51 +130,60 @@ final class PasswordRecoveryTest extends IntegrationTestCase
     }
 
     // =====================================================================
-    // RECUPERAR_003 — Restablecimiento con código válido
+    // RECUPERAR_003 — Restablecimiento con código válido (end-to-end vía Mailtrap)
     // =====================================================================
 
     #[Test]
-    #[TestDox('RECUPERAR_003 - El código de recuperación válido permite cambiar la contraseña (HTTP 200)')]
+    #[TestDox('RECUPERAR_003 - El código recibido por email permite cambiar la contraseña (HTTP 200)')]
     public function testRestablecimientoConCodigoValido(): void
     {
+        $this->saltearSiSinSmtp('RECUPERAR_003');
+        $this->saltearSiSinMailtrap('RECUPERAR_003');
+
         $usuario   = $this->crearUsuarioDePrueba('Test123456');
         $cookieJar = tempnam(sys_get_temp_dir(), 'recover_cookie_');
 
-        // 1. Disparar el flujo de recuperación manteniendo la sesión vía cookieJar.
-        //    Aunque MAIL_ENABLED=false devuelva 503, el backend ya guardó
-        //    recovery_code + recovery_user_id en $_SESSION.
+        // 1. Vaciar el inbox de Mailtrap para evitar que el test lea un email
+        //    de una ejecución anterior.
+        $this->vaciarInboxMailtrap();
+
+        // 2. Disparar el flujo de recuperación. El backend envía el email a Mailtrap.
         [$requestCode] = $this->postJsonConSesion(
             'recover_request',
             ['identificador' => $usuario->getEmail()],
             $cookieJar
         );
 
-        $this->assertContains(
+        $this->assertSame(
+            200,
             $requestCode,
-            [200, 503],
-            'recover_request debe responder 200 o 503 (sin SMTP). HTTP: ' . $requestCode
+            'recover_request debe responder HTTP 200 con SMTP activo. HTTP: ' . $requestCode
         );
 
-        // 2. Leer el recovery_code directamente del archivo de sesión del servidor.
-        $sessionId = $this->extraerSessionIdDesdeCookieJar($cookieJar);
-        $codigo    = $this->extraerCodigoDesdeSesion($sessionId);
+        // 3. Esperar y leer el email desde la API de Mailtrap; extraer el código.
+        $codigo = $this->extraerCodigoDesdeMailtrap($usuario->getEmail());
 
-        // 3. Restablecer la contraseña enviando el código dentro de la misma sesión.
+        $this->assertMatchesRegularExpression(
+            '/^\d{4}$/',
+            $codigo,
+            'El código extraído del email debe ser un número de 4 dígitos.'
+        );
+
+        // 4. Restablecer la contraseña dentro de la misma sesión.
         [$resetCode, $resetBody] = $this->postJsonConSesion(
             'recover_reset',
             [
-                'codigo'    => $codigo,
-                'password'  => 'NuevaPass123',
+                'codigo'   => $codigo,
+                'password' => 'NuevaPass123',
             ],
-            $cookieJar,
-            $sessionId
+            $cookieJar
         );
 
-        $this->assertSame(200, $resetCode, 'recover_reset debería devolver HTTP 200.');
+        $this->assertSame(200, $resetCode, 'recover_reset debe devolver HTTP 200.');
         $this->assertSame('success', $resetBody['status'] ?? '');
         $this->assertSame('Contraseña restablecida correctamente.', $resetBody['message'] ?? '');
 
-        // 4. Verificar que el login con la nueva contraseña funciona.
+        // 5. Verificar que el login con la nueva contraseña funciona.
         [$loginCode] = $this->postJson(
             'login',
             [
@@ -167,7 +194,7 @@ final class PasswordRecoveryTest extends IntegrationTestCase
 
         $this->assertSame(200, $loginCode, 'El login con la nueva contraseña debe devolver HTTP 200.');
 
-        // Limpieza del archivo de cookies temporal
+        // Limpieza del archivo de cookies temporal.
         if (file_exists($cookieJar)) {
             unlink($cookieJar);
         }
@@ -195,7 +222,159 @@ final class PasswordRecoveryTest extends IntegrationTestCase
     }
 
     // =====================================================================
-    // Helpers HTTP con soporte de sesión (específicos de este flujo)
+    // Skip helpers
+    // =====================================================================
+
+    /**
+     * Salta el test con un mensaje claro si el backend no tiene SMTP configurado.
+     * Se activa cuando MAIL_ENABLED != 'true' en el entorno de ejecución.
+     */
+    private function saltearSiSinSmtp(string $nombreTest): void
+    {
+        $mailEnabled = strtolower(trim(getenv('MAIL_ENABLED') ?: ''));
+
+        if ($mailEnabled !== 'true') {
+            $this->markTestSkipped(
+                "{$nombreTest} requiere SMTP activo (MAIL_ENABLED=true). " .
+                'Configurá el servidor de correo y activá MAIL_ENABLED en el .env para correr este test.'
+            );
+        }
+    }
+
+    /**
+     * Salta el test si no están configuradas las credenciales de Mailtrap.
+     * Se necesitan tanto el token de API como el ID del inbox.
+     */
+    private function saltearSiSinMailtrap(string $nombreTest): void
+    {
+        $token   = getenv('MAILTRAP_API_TOKEN');
+        $inboxId = getenv('MAILTRAP_INBOX_ID');
+
+        if (empty($token) || empty($inboxId)) {
+            $this->markTestSkipped(
+                "{$nombreTest} requiere Mailtrap configurado. " .
+                'Definí MAILTRAP_API_TOKEN y MAILTRAP_INBOX_ID en el entorno o en phpunit.xml.'
+            );
+        }
+    }
+
+    // =====================================================================
+    // Mailtrap API helpers
+    // =====================================================================
+
+    /**
+     * Elimina todos los mensajes del inbox de Mailtrap para que el test
+     * siguiente no lea un email de una ejecución anterior.
+     */
+    private function vaciarInboxMailtrap(): void
+    {
+        $token   = getenv('MAILTRAP_API_TOKEN');
+        $inboxId = getenv('MAILTRAP_INBOX_ID');
+
+        $ch = curl_init("https://mailtrap.io/api/v1/inboxes/{$inboxId}/clean");
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => 'PATCH',
+            CURLOPT_HTTPHEADER     => ["Api-Token: {$token}"],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+        ]);
+        $cleanResponse = curl_exec($ch);
+        $cleanHttpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        // Si el vaciado falla, el test debe abortar con un mensaje claro
+        // en vez de leer un email viejo de la ejecución anterior.
+        $this->assertContains(
+            $cleanHttpCode,
+            [200, 204],
+            "No se pudo vaciar el inbox de Mailtrap. HTTP {$cleanHttpCode}: {$cleanResponse}"
+        );
+
+        // Pausa breve para que Mailtrap procese el borrado antes de enviar el nuevo email.
+        usleep(1_000_000);
+    }
+
+    /**
+     * Espera hasta 30 segundos a que llegue un email al inbox de Mailtrap
+     * y extrae el código de recuperación de 4 dígitos del cuerpo de texto.
+     *
+     * El inbox se vació justo antes de llamar a recover_request, así que
+     * el primer mensaje que aparezca es necesariamente el que enviamos.
+     * No filtramos por destinatario porque la estructura exacta del campo
+     * varía entre versiones de la API de Mailtrap.
+     *
+     * El backend envía:
+     *   "Tu código de recuperación de contraseña es: {$codigo}"
+     *
+     * @param string $emailDestinatario Email del usuario (usado solo en el mensaje de fallo).
+     * @return string Código de 4 dígitos extraído del email.
+     */
+    private function extraerCodigoDesdeMailtrap(string $emailDestinatario): string
+    {
+        $token   = getenv('MAILTRAP_API_TOKEN');
+        $inboxId = getenv('MAILTRAP_INBOX_ID');
+        $apiBase = "https://mailtrap.io/api/v1/inboxes/{$inboxId}";
+
+        $deadline  = microtime(true) + 30;
+        $messageId = null;
+
+        // Polling: esperar a que aparezca al menos un mensaje en el inbox.
+        // El inbox fue vaciado justo antes de disparar recover_request,
+        // por lo que cualquier mensaje que llegue es el nuestro.
+        $lastRawResponse = '';
+        while (microtime(true) < $deadline) {
+            $ch = curl_init("{$apiBase}/messages");
+            curl_setopt_array($ch, [
+                CURLOPT_HTTPHEADER     => ["Api-Token: {$token}"],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 10,
+            ]);
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            $lastRawResponse = (string) $response;
+            $messages = json_decode($lastRawResponse, true) ?? [];
+
+            if (!empty($messages) && isset($messages[0]['id'])) {
+                $messageId = $messages[0]['id'];
+                break;
+            }
+
+            usleep(2_000_000); // 2 s entre intentos
+        }
+
+        $this->assertNotNull(
+            $messageId,
+            "El email de recuperación no llegó al inbox de Mailtrap en 30 segundos. " .
+            "Destinatario esperado: {$emailDestinatario}. " .
+            "\u00daltima respuesta de la API: {$lastRawResponse}"
+        );
+
+        // Obtener el cuerpo de texto plano del mensaje.
+        $ch = curl_init("{$apiBase}/messages/{$messageId}/body.txt");
+        curl_setopt_array($ch, [
+            CURLOPT_HTTPHEADER     => ["Api-Token: {$token}"],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+        ]);
+        $textBody = (string) curl_exec($ch);
+        curl_close($ch);
+
+        // Parsear el código: "Tu código de recuperación de contraseña es: 1234"
+        preg_match('/es:\s*(\d{4})/', $textBody, $matches);
+        $codigo = $matches[1] ?? null;
+
+        $this->assertNotEmpty(
+            $codigo,
+            "No se encontró el código de 4 dígitos en el email de Mailtrap. " .
+            "Cuerpo recibido: {$textBody}"
+        );
+
+        return $codigo;
+    }
+
+    // =====================================================================
+    // Helper HTTP con soporte de sesión (específico de este flujo)
     // =====================================================================
 
     /**
@@ -206,31 +385,21 @@ final class PasswordRecoveryTest extends IntegrationTestCase
      * que ambos requests compartan el mismo PHPSESSID para que el servidor
      * encuentre el recovery_code en $_SESSION.
      *
-     * @param string      $action     Valor del query param ?action=
-     * @param array       $payload    Body JSON
-     * @param string      $cookieJar  Ruta al archivo de cookies temporal (cURL COOKIEJAR)
-     * @param string|null $sessionId  Si se conoce, fuerza el PHPSESSID como cookie
+     * @param string $action    Valor del query param ?action=
+     * @param array  $payload   Body JSON
+     * @param string $cookieJar Ruta al archivo de cookies temporal (cURL COOKIEJAR)
      *
-     * @return array{int, array}  [httpCode, body decodificado]
+     * @return array{int, array} [httpCode, body decodificado]
      */
-    private function postJsonConSesion(
-        string  $action,
-        array   $payload,
-        string  $cookieJar,
-        ?string $sessionId = null,
-    ): array {
-        // makeRequest() de la clase base no soporta cookies; construimos la URL
-        // manualmente siguiendo la misma lógica de resolución de path.
+    private function postJsonConSesion(string $action, array $payload, string $cookieJar): array
+    {
         $baseUrl = $this->resolverBaseUrl();
         $url     = $baseUrl . '/index.php?action=' . $action;
 
         $ch = curl_init($url);
-
-        $headers = ['Content-Type: application/json'];
-
-        $options = [
+        curl_setopt_array($ch, [
             CURLOPT_CUSTOMREQUEST  => 'POST',
-            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
             CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER         => false,
@@ -238,14 +407,7 @@ final class PasswordRecoveryTest extends IntegrationTestCase
             CURLOPT_TIMEOUT        => 30,
             CURLOPT_COOKIEJAR      => $cookieJar,
             CURLOPT_COOKIEFILE     => $cookieJar,
-        ];
-
-        // Forzar la sesión si ya se conoce el PHPSESSID (segundo request del flujo)
-        if ($sessionId !== null) {
-            $options[CURLOPT_COOKIE] = 'PHPSESSID=' . $sessionId;
-        }
-
-        curl_setopt_array($ch, $options);
+        ]);
 
         $body     = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -256,7 +418,7 @@ final class PasswordRecoveryTest extends IntegrationTestCase
             $this->fail("CRÍTICO: Falló la conexión cURL (POST $action). Error: $error");
         }
 
-        // Descartar basura de texto antes del JSON (ej. notices de PHP)
+        // Descartar basura de texto antes del JSON (ej. notices de PHP).
         $jsonStart = strpos($body, '{');
         if ($jsonStart !== false) {
             $body = substr($body, $jsonStart);
@@ -267,19 +429,14 @@ final class PasswordRecoveryTest extends IntegrationTestCase
 
     /**
      * Devuelve la URL base del servidor (sin /index.php ni query string).
-     * Replica la lógica de makeRequest() para construir URLs fuera de él.
      *
      * En modo local:  "http://127.0.0.1:8099"
-     * En modo Render: "https://server.onrender.com/index.php" → se quita /index.php
+     * En modo Render: "https://server.onrender.com"
      */
     private function resolverBaseUrl(): string
     {
-        // Accedemos a la propiedad estática heredada a través de la reflexión,
-        // ya que es private en IntegrationTestCase. El workaround más simple
-        // y sin romper encapsulación es reconstruirla desde las mismas env vars.
         $renderUrl = getenv('TEST_RENDER_URL');
         if ($renderUrl !== false && $renderUrl !== '') {
-            // Quitar /index.php si viene incluido en la URL de Render
             return rtrim(str_replace('/index.php', '', $renderUrl), '/');
         }
 
@@ -287,90 +444,5 @@ final class PasswordRecoveryTest extends IntegrationTestCase
         $port = getenv('TEST_SERVER_PORT') ?: '8099';
 
         return "http://{$host}:{$port}";
-    }
-
-    // =====================================================================
-    // Helpers de sesión PHP
-    // =====================================================================
-
-    /**
-     * Lee el archivo de cookies de cURL y extrae el valor de PHPSESSID.
-     * El formato Netscape cookies tiene 7 columnas separadas por tabs;
-     * el valor es la última columna.
-     */
-    private function extraerSessionIdDesdeCookieJar(string $cookieJar): string
-    {
-        $contenido = file_get_contents($cookieJar);
-        $this->assertNotFalse($contenido, 'No se pudo leer el archivo de cookies: ' . $cookieJar);
-
-        foreach (explode("\n", $contenido) as $linea) {
-            if (!str_contains($linea, 'PHPSESSID')) {
-                continue;
-            }
-
-            $partes = preg_split('/\s+/', trim($linea));
-            if (count($partes) >= 7) {
-                return $partes[6];
-            }
-        }
-
-        $this->fail('No se encontró PHPSESSID en el archivo de cookies: ' . $cookieJar);
-    }
-
-    /**
-     * Lee el archivo de sesión físico del servidor PHP embebido y extrae
-     * el recovery_code guardado por AuthController::recoverRequest().
-     *
-     * El archivo de sesión tiene el formato de serialización de PHP:
-     *   recovery_code|s:6:"123456";recovery_user_id|i:42;
-     *
-     * Solo funciona cuando el servidor corre localmente (misma máquina que el test).
-     * En modo Render no existe acceso al filesystem del servidor remoto.
-     */
-    private function extraerCodigoDesdeSesion(string $sessionId): string
-    {
-        $savePath    = $this->resolverSessionSavePath();
-        $sessionFile = rtrim($savePath, DIRECTORY_SEPARATOR)
-            . DIRECTORY_SEPARATOR
-            . 'sess_' . $sessionId;
-
-        $this->assertFileExists(
-            $sessionFile,
-            'No se encontró el archivo de sesión. Path: ' . $sessionFile
-        );
-
-        $contenido = file_get_contents($sessionFile);
-        $this->assertNotFalse($contenido, 'No se pudo leer el archivo de sesión: ' . $sessionFile);
-
-        preg_match('/recovery_code\|s:\d+:"([^"]+)";/', $contenido, $matches);
-        $codigo = $matches[1] ?? null;
-
-        $this->assertNotEmpty(
-            $codigo,
-            'No se encontró recovery_code en la sesión. Contenido: ' . $contenido
-        );
-
-        return $codigo;
-    }
-
-    /**
-     * Devuelve la ruta donde PHP almacena los archivos de sesión.
-     * Respeta la configuración real de session.save_path del proceso PHP actual.
-     */
-    private function resolverSessionSavePath(): string
-    {
-        $path = ini_get('session.save_path');
-
-        if (!$path) {
-            return sys_get_temp_dir();
-        }
-
-        // session.save_path puede tener el formato "N;/ruta" (con nivel de profundidad)
-        if (str_contains($path, ';')) {
-            $parts = explode(';', $path);
-            $path  = end($parts);
-        }
-
-        return $path ?: sys_get_temp_dir();
     }
 }
