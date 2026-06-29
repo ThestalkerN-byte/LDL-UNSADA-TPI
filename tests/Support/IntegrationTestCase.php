@@ -333,6 +333,18 @@ abstract class IntegrationTestCase extends TestCase
         return $user;
     }
 
+
+    /**
+     * Expone el EntityManager a las subclases que necesitan limpiar
+     * entidades relacionadas antes del borrado de User (p.ej. History).
+     *
+     * Devuelve null si la BD no está disponible o aún no se inicializó.
+     */
+    protected static function getEntityManager(): ?EntityManagerInterface
+    {
+        return self::$em;
+    }
+
     // =====================================================================
     // Helpers HTTP
     // =====================================================================

@@ -34,6 +34,9 @@
         <testsuite name="CredentialManagement">
             <directory>tests/CredentialManagement</directory>
         </testsuite>
+        <testsuite name="Messaging">
+            <directory>tests/Messaging</directory>
+        </testsuite>
         <testsuite name="UserManagement">
             <directory>tests/UserManagement</directory>
         </testsuite>
