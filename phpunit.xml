@@ -16,6 +16,9 @@
         <testsuite name="Search">
             <directory>tests/UserSearch</directory>
         </testsuite>
+        <testsuite name="AlertManagement">
+            <directory>tests/AlertManagement</directory>
+        </testsuite>
         <testsuite name="Sello">
             <directory>tests/SelloManagement</directory>
         </testsuite>
@@ -24,6 +27,9 @@
         </testsuite>
         <testsuite name="CredentialDisplay">
             <directory>tests/CredentialDisplay</directory>
+        </testsuite>
+        <testsuite name="PasswordRecovery">
+            <directory>tests/PasswordRecovery</directory>
         </testsuite>
         <testsuite name="CredentialManagement">
             <directory>tests/CredentialManagement</directory>
