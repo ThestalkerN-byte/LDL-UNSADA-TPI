@@ -32,8 +32,15 @@
     },
     "scripts": {
         "test": "phpunit",
+        "test:access": "phpunit --testsuite AccessControl",
+        "test:alert": "phpunit --testsuite AlertManagement",
         "test:auth": "phpunit --testsuite Authentication",
-        "test:search": "phpunit --testsuite Search",
-        "test:sello": "phpunit --testsuite Sello"
+        "test:credential": "phpunit --testsuite CredentialDisplay",
+        "test:credential-mgmt": "phpunit --testsuite CredentialManagement",
+        "test:messaging": "phpunit --testsuite Messaging",
+        "test:password": "phpunit --testsuite PasswordRecovery",
+        "test:sello": "phpunit --testsuite Sello",
+        "test:user": "phpunit --testsuite UserManagement",
+        "test:search": "phpunit --testsuite Search"
     }
 }
