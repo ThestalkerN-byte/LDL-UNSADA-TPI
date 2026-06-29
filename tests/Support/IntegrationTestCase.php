@@ -19,7 +19,22 @@ use PHPUnit\Framework\TestCase;
  *   - Conexión al EntityManager de Doctrine
  *   - Limpieza del rate limiter entre tests
  *   - Creación y limpieza automática de usuarios de prueba
- *   - Helpers HTTP: postJson() y getJson() con soporte JWT
+ *   - Helpers HTTP: postJson(), getJson(), putJson(), deleteJson() con soporte JWT
+ *   - makeRequest() con cURL para suites que apuntan a servidores remotos (ej. Render)
+ *
+ * Modos de operación
+ * ------------------
+ * Modo LOCAL (por defecto):
+ *   Levanta un servidor PHP embebido en TEST_SERVER_HOST:TEST_SERVER_PORT.
+ *   Ideal para CI y desarrollo local.
+ *
+ * Modo RENDER (nube):
+ *   Si la variable de entorno TEST_RENDER_URL está definida, se usa esa
+ *   URL como base en lugar del servidor embebido. El servidor embebido
+ *   no se inicia. Útil para suites E2E contra staging/producción.
+ *
+ *   Ejemplo en phpunit.xml:
+ *     <env name="TEST_RENDER_URL" value="https://server-qbnm.onrender.com/index.php"/>
  *
  * Cómo usarla:
  *   Extender esta clase en lugar de TestCase.
@@ -30,9 +45,6 @@ abstract class IntegrationTestCase extends TestCase
 {
     // ── Propiedades estáticas ─────────────────────────────────────────────
     // Son estáticas porque setUpBeforeClass/tearDownAfterClass son estáticos.
-    // Como todos los subclases comparten estas propiedades (PHP no hace
-    // late-static binding en propiedades), funcionan correctamente mientras
-    // PHPUnit ejecute las clases de forma secuencial (comportamiento por defecto).
 
     /** @var resource|null Proceso del servidor PHP embebido */
     private static $serverProcess = null;
@@ -45,6 +57,12 @@ abstract class IntegrationTestCase extends TestCase
     private static bool   $dbAvailable  = false;
     private static string $skipReason   = 'Causa desconocida.';
 
+    /**
+     * true cuando se opera contra un servidor remoto (Render).
+     * En ese modo el servidor embebido no se inicia/detiene.
+     */
+    private static bool $modoRender = false;
+
     /** @var int[] IDs de usuarios creados en este test, para limpiarlos en tearDown */
     protected array $createdUserIds = [];
 
@@ -55,12 +73,21 @@ abstract class IntegrationTestCase extends TestCase
     public static function setUpBeforeClass(): void
     {
         $projectRoot = dirname(__DIR__, 2);
-        $host        = getenv('TEST_SERVER_HOST') ?: '127.0.0.1';
-        $port        = getenv('TEST_SERVER_PORT') ?: '8099';
-        self::$baseUrl    = "http://{$host}:{$port}";
-        self::$serverHost = $host;
-        self::$serverPort = $port;
         self::$projectRoot = $projectRoot;
+
+        // ── Detección de modo Render ──────────────────────────────────────
+        $renderUrl = getenv('TEST_RENDER_URL');
+        if ($renderUrl !== false && $renderUrl !== '') {
+            self::$modoRender = true;
+            self::$baseUrl    = rtrim($renderUrl, '/');
+        } else {
+            self::$modoRender = false;
+            $host  = getenv('TEST_SERVER_HOST') ?: '127.0.0.1';
+            $port  = getenv('TEST_SERVER_PORT') ?: '8099';
+            self::$baseUrl    = "http://{$host}:{$port}";
+            self::$serverHost = $host;
+            self::$serverPort = $port;
+        }
 
         if (getenv('SKIP_DB_INTEGRATION_TESTS') === '1') {
             self::$dbAvailable = false;
@@ -70,7 +97,10 @@ abstract class IntegrationTestCase extends TestCase
 
         self::cargarDotEnv($projectRoot);
         self::limpiarRateLimitCache();
-        self::startBuiltInServer($projectRoot, $host, $port);
+
+        if (!self::$modoRender) {
+            self::startBuiltInServer($projectRoot, self::$serverHost, self::$serverPort);
+        }
 
         try {
             self::$em = require $projectRoot . '/config/bootstrap.php';
@@ -84,7 +114,10 @@ abstract class IntegrationTestCase extends TestCase
 
     public static function tearDownAfterClass(): void
     {
-        self::stopBuiltInServer();
+        if (!self::$modoRender) {
+            self::stopBuiltInServer();
+        }
+
         self::$em          = null;
         self::$dbAvailable = false;
         self::$skipReason  = 'Causa desconocida.';
@@ -96,15 +129,11 @@ abstract class IntegrationTestCase extends TestCase
             $this->markTestSkipped('Test de integración omitido. Razón: ' . self::$skipReason);
         }
 
-        // Limpia el rate limit antes de cada test para evitar acumulación
-        // de intentos entre tests y recibir 429 en vez del código esperado.
         self::limpiarRateLimitCache();
 
-        // Health check: verifica que el servidor embebido sigue respondiendo.
-        // El servidor php -S puede caerse después de muchas conexiones SSL
-        // a Aiven (cada request abre una conexión nueva a la BD remota).
-        // Si no responde, lo reinicia automáticamente antes de continuar.
-        self::verificarYReiniciarServidor();
+        if (!self::$modoRender) {
+            self::verificarYReiniciarServidor();
+        }
     }
 
     protected function tearDown(): void
@@ -113,10 +142,13 @@ abstract class IntegrationTestCase extends TestCase
             return;
         }
 
-        // Borra todos los usuarios creados durante el test
+        // Borra todos los usuarios creados durante el test.
+        // Antes de eliminar al usuario, purga las entidades relacionadas
+        // para no violar restricciones de clave foránea.
         foreach ($this->createdUserIds as $id) {
             $user = self::$em->getRepository(User::class)->find($id);
             if ($user !== null) {
+                self::purgarEntidadesRelacionadas($user);
                 self::$em->remove($user);
             }
         }
@@ -129,13 +161,65 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     // =====================================================================
+    // Limpieza de entidades relacionadas (hard delete)
+    // =====================================================================
+
+    /**
+     * Elimina del EntityManager todos los registros relacionados a un usuario
+     * antes de borrarlo, evitando violaciones de FK.
+     *
+     * Cubre: mensajes (Message) e historial de auditoría (History).
+     * Los subclases pueden hacer override para añadir más entidades.
+     *
+     * No llama flush() — el llamador es responsable de hacerlo.
+     */
+    protected static function purgarEntidadesRelacionadas(User $user): void
+    {
+        if (self::$em === null) {
+            return;
+        }
+
+        // Mensajes del usuario
+        $mensajes = self::$em->getRepository(\App\Entity\Message::class)->findBy(['user' => $user]);
+        foreach ($mensajes as $mensaje) {
+            self::$em->remove($mensaje);
+        }
+
+        // Historial de auditoría atado a este usuario como "admin"
+        $historiales = self::$em->getRepository(\App\Entity\History::class)->findBy(['admin' => $user]);
+        foreach ($historiales as $historial) {
+            self::$em->remove($historial);
+        }
+    }
+
+    /**
+     * Hard delete directo por ID: purga entidades relacionadas, elimina el
+     * usuario y hace flush. Útil en tearDownAfterClass de subclases cuando
+     * el usuario no pasó por $createdUserIds.
+     */
+    protected static function eliminarUsuarioPorId(int $userId): void
+    {
+        if (self::$em === null || $userId <= 0) {
+            return;
+        }
+
+        $user = self::$em->getRepository(User::class)->find($userId);
+        if ($user === null) {
+            return;
+        }
+
+        self::purgarEntidadesRelacionadas($user);
+        self::$em->remove($user);
+        self::$em->flush();
+    }
+
+    // =====================================================================
     // Infraestructura: carga de .env
     // =====================================================================
 
     /**
      * Parsea el archivo .env manualmente y carga las variables en $_ENV,
-     * $_SERVER y putenv(). No depende de vlucas/phpdotenv (que en este
-     * proyecto está mal ubicado en "scripts" en vez de "require").
+     * $_SERVER y putenv(). No depende de vlucas/phpdotenv.
      *
      * Reglas:
      *   - Ignora líneas vacías y comentarios (# ...)
@@ -169,7 +253,6 @@ abstract class IntegrationTestCase extends TestCase
             $clave = trim($clave);
             $valor = trim($valor);
 
-            // Quitar comillas envolventes: VAR="valor con espacios" → valor con espacios
             if (
                 (str_starts_with($valor, '"') && str_ends_with($valor, '"')) ||
                 (str_starts_with($valor, "'") && str_ends_with($valor, "'"))
@@ -195,9 +278,6 @@ abstract class IntegrationTestCase extends TestCase
      * Verifica que el servidor embebido sigue respondiendo y lo reinicia
      * si se cayó. El servidor php -S puede morir después de muchas
      * conexiones a la base de datos remota (Aiven con SSL).
-     *
-     * Intenta conectar al puerto; si falla, mata el proceso anterior
-     * y arranca uno nuevo antes de que el test continúe.
      */
     private static function verificarYReiniciarServidor(): void
     {
@@ -205,19 +285,16 @@ abstract class IntegrationTestCase extends TestCase
 
         if ($conn !== false) {
             fclose($conn);
-            return; // El servidor responde — todo bien
+            return;
         }
 
-        // El servidor no responde: lo reinicia
         self::stopBuiltInServer();
-        usleep(300_000); // 300 ms para liberar el puerto
+        usleep(300_000);
         self::startBuiltInServer(self::$projectRoot, self::$serverHost, self::$serverPort);
     }
 
     private static function startBuiltInServer(string $projectRoot, string $host, string $port): void
     {
-        // -d display_errors=Off: evita que los PHP Deprecated/Notice de
-        // librerías de vendor se inyecten en el body HTTP corrompiendo el JSON.
         $command = "php -d display_errors=Off -S {$host}:{$port} -t " . escapeshellarg($projectRoot);
 
         $descriptors = [
@@ -237,7 +314,6 @@ abstract class IntegrationTestCase extends TestCase
 
         self::$serverProcess = $process;
 
-        // Espera a que el servidor acepte conexiones (máx. 5 segundos)
         $deadline = microtime(true) + 5;
         while (microtime(true) < $deadline) {
             $conn = @fsockopen($host, (int) $port, $errno, $errstr, 0.2);
@@ -270,10 +346,6 @@ abstract class IntegrationTestCase extends TestCase
 
     /**
      * Elimina el directorio de rate limiting antes de cada test.
-     *
-     * Usa el comando del SO en vez de glob() porque en Windows los archivos
-     * del rate limiter tienen ":" en el nombre (NTFS Alternate Data Streams)
-     * y glob() no los lista correctamente.
      */
     protected static function limpiarRateLimitCache(): void
     {
@@ -296,9 +368,6 @@ abstract class IntegrationTestCase extends TestCase
     /**
      * Crea un usuario de prueba directamente en la base de datos (sin pasar
      * por la API) y lo registra para limpieza automática en tearDown().
-     *
-     * La contraseña se guarda hasheada con bcrypt, igual que lo hace el
-     * flujo real de la aplicación.
      *
      * @param string      $passwordPlano  Contraseña en texto plano
      * @param string      $rol            'user' o 'admin'
@@ -333,20 +402,8 @@ abstract class IntegrationTestCase extends TestCase
         return $user;
     }
 
-
-    /**
-     * Expone el EntityManager a las subclases que necesitan limpiar
-     * entidades relacionadas antes del borrado de User (p.ej. History).
-     *
-     * Devuelve null si la BD no está disponible o aún no se inicializó.
-     */
-    protected static function getEntityManager(): ?EntityManagerInterface
-    {
-        return self::$em;
-    }
-
     // =====================================================================
-    // Helpers HTTP
+    // Helpers HTTP — file_get_contents (servidor local)
     // =====================================================================
 
     /**
@@ -492,13 +549,101 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     // =====================================================================
+    // Helper HTTP — cURL (servidor remoto / Render)
+    // =====================================================================
+
+    /**
+     * Realiza una petición HTTP usando cURL.
+     *
+     * Necesario para entornos remotos (Render/Aiven) donde:
+     *   - SSL_VERIFYPEER puede dar problemas con certificados locales.
+     *   - file_get_contents() con wrapper http puede estar deshabilitado.
+     *
+     * Se usa internamente por makeRequest(); los tests pueden llamarlo
+     * directamente si necesitan control fino sobre la URL completa.
+     *
+     * @param string      $method  GET, POST, PUT, DELETE
+     * @param string      $uri     Fragmento de URL a partir de $baseUrl (ej. "?action=message")
+     * @param array       $payload Datos a enviar como JSON (ignorado en GET/DELETE)
+     * @param string|null $token   JWT para Authorization: Bearer
+     *
+     * @return array{int, array}  [httpStatusCode, decodedBody]
+     */
+    protected static function makeRequest(
+        string  $method,
+        string  $uri,
+        array   $payload = [],
+        ?string $token   = null,
+    ): array {
+        // En modo local $baseUrl es "http://host:port" (sin path).
+        // En modo Render $baseUrl ya incluye "/index.php" (desde TEST_RENDER_URL).
+        // Si $uri empieza con '?' necesitamos el path intermedio para el servidor local;
+        // para Render el separador ya está incluido en $baseUrl, así que no se duplica.
+        if (str_starts_with($uri, '?') && !str_ends_with(self::$baseUrl, '.php')) {
+            $url = self::$baseUrl . '/index.php' . $uri;
+        } else {
+            $url = self::$baseUrl . $uri;
+        }
+        $ch  = curl_init($url);
+
+        $headers = ['Content-Type: application/json'];
+        if ($token !== null) {
+            $headers[] = "Authorization: Bearer $token";
+        }
+
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+        if (!empty($payload) && in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        }
+
+        $response = curl_exec($ch);
+
+        if ($response === false) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            static::fail("CRÍTICO: Falló la conexión cURL ($method $uri). Error: $error");
+        }
+
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        // El servidor a veces antepone warnings de PHP al JSON —
+        // buscamos el primer '{' para descartar basura de texto.
+        $jsonStart = strpos($response, '{');
+        if ($jsonStart !== false) {
+            $response = substr($response, $jsonStart);
+        }
+
+        $decoded = json_decode($response, true) ?? [];
+
+        return [$httpCode, $decoded];
+    }
+
+    /**
+     * Login estático usando makeRequest() (cURL).
+     * Útil en setUpBeforeClass() de subclases.
+     */
+    protected static function loginConCurl(string $usuario, string $password): ?string
+    {
+        $payload = ['identificador' => $usuario, 'password' => $password];
+        [$code, $body] = static::makeRequest('POST', '?action=login', $payload);
+
+        return $code === 200
+            ? ($body['data']['token'] ?? $body['token'] ?? null)
+            : null;
+    }
+
+    // =====================================================================
     // Privados
     // =====================================================================
 
     /**
      * Extrae el HTTP status code de los headers y decodifica el body JSON.
-     * Recibe $http_response_header como parámetro porque esa variable mágica
-     * solo existe en el scope donde se llamó file_get_contents().
      */
     private function parsearRespuesta(string|false $body, array $responseHeaders): array
     {

@@ -1,255 +1,295 @@
 <?php
 
-use PHPUnit\Framework\TestCase;
+declare(strict_types=1);
+
+namespace App\Tests\CredentialManagement;
+
+use App\Tests\Support\IntegrationTestCase;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\TestDox;
 
 /**
- * Pruebas del modulo CREDADMIN - Gestion de credenciales (Admin)
+ * Pruebas de integración HTTP — Módulo CREDADMIN: Gestión de credenciales (Admin)
+ *
+ * Endpoints cubiertos:
+ *   PUT  /index.php?action=credential&id={id}
+ *   POST /index.php?action=credential&sub=renew&id={id}
  *
  * Mapeo con la planilla QA:
- *
- *   - ADMIN_005 -> testModificacionCorrectaDeFechaYSellos()
- *   - ADMIN_006 -> testRenovacionDeCredencialVigente()
- *   - ADMIN_006 -> testRenovacionDeCredencialVencida()
+ *   ADMIN_005 → testModificacionCorrectaDeFechaYSellos()
+ *   ADMIN_006 → testRenovacionDeCredencialVigente()
+ *   ADMIN_006 → testRenovacionDeCredencialVencida()
  *
  * Requisito cubierto: RF09
+ *
+ * Estrategia de limpieza:
+ *   Los usuarios de prueba se crean directamente por Doctrine (crearUsuarioDePrueba)
+ *   y se registran en $createdUserIds para que IntegrationTestCase los borre
+ *   automáticamente en tearDown(). Las credenciales asociadas se eliminan solas
+ *   por la FK con ON DELETE CASCADE definida en la entidad Credential.
  */
-final class CredentialManagementTest extends TestCase
+final class CredentialManagementTest extends IntegrationTestCase
 {
-    private string $baseUrl = 'http://127.0.0.1:8000/index.php';
+    /** Token JWT del admin, obtenido una vez por test en setUp(). */
+    private string $adminToken = '';
 
-    private static ?string $adminToken = null;
+    /**
+     * IDs de credenciales renovadas (nueva credencial que crea el endpoint renew).
+     * Se limpian vía API antes de que tearDown() elimine el usuario,
+     * por si la FK no alcanza a cubrirlas (credenciales huérfanas de renovación).
+     *
+     * @var int[]
+     */
+    private array $credencialesRenovadasIds = [];
 
-    private array $usuariosCreados = [];
-    private array $credencialesCreadas = [];
+    // =====================================================================
+    // Ciclo de vida
+    // =====================================================================
+
+    protected function setUp(): void
+    {
+        // La clase base verifica la BD, limpia el rate limiter y controla el servidor.
+        parent::setUp();
+
+        // Login de admin una vez por test (el token expira entre suites largas).
+        $this->adminToken = $this->login('admin', '123456');
+    }
 
     protected function tearDown(): void
     {
-        foreach (array_unique(array_reverse($this->credencialesCreadas)) as $id) {
-            $this->requestJson(
-                'DELETE',
-                '?action=credential&id=' . $id,
-                [],
-                $this->authHeaders()
-            );
+        // Las credenciales RENOVADAS generan un nuevo registro que puede no estar
+        // ligado al usuario si el endpoint crea una credencial independiente.
+        // Las borramos vía API antes de que Doctrine elimine el usuario.
+        foreach (array_unique(array_reverse($this->credencialesRenovadasIds)) as $id) {
+            $this->deleteJson('credential', (int) $id, $this->adminToken);
         }
+        $this->credencialesRenovadasIds = [];
 
-        foreach (array_unique(array_reverse($this->usuariosCreados)) as $id) {
-            $this->requestJson(
-                'DELETE',
-                '?action=user&id=' . $id,
-                [],
-                $this->authHeaders()
-            );
-        }
+        // La clase base elimina usuarios + sus credenciales originales (ON DELETE CASCADE).
+        parent::tearDown();
     }
 
     // =====================================================================
-    // ADMIN_005 - Modificacion correcta de fecha y sellos
+    // ADMIN_005 — Modificación correcta de fecha y sellos
     // =====================================================================
+
+    #[Test]
+    #[TestDox('ADMIN_005 - La fecha de vencimiento y los sellos se actualizan correctamente (HTTP 200)')]
     public function testModificacionCorrectaDeFechaYSellos(): void
     {
-        $usuario = $this->crearUsuarioDeTesting();
+        // Preparación: usuario + credencial inicial
+        $usuario    = $this->crearUsuarioDePrueba();
+        $credencial = $this->crearCredencialDeTesting($usuario->getId(), '+30 days', ['Sello Inicial']);
 
-        $credencial = $this->crearCredencialDeTesting(
-            $usuario['id'],
-            (new DateTimeImmutable('today +30 days'))->format('Y-m-d'),
-            ['Sello Inicial']
-        );
-
-        $nuevaFecha = (new DateTimeImmutable('today +180 days'))->format('Y-m-d');
+        $nuevaFecha   = (new \DateTimeImmutable('today +180 days'))->format('Y-m-d');
         $nuevosSellos = ['Sello A', 'Sello B'];
 
-        $response = $this->requestJson(
-            'PUT',
-            '?action=credential&id=' . $credencial['id'],
+        // Acción: modificar fecha y sellos vía PUT
+        [$httpCode, $body] = $this->putJson(
+            'credential',
+            (int) $credencial['id'],
             [
                 'fecha_vencimiento' => $nuevaFecha,
-                'sellos' => $nuevosSellos,
+                'sellos'            => $nuevosSellos,
             ],
-            $this->authHeaders()
+            $this->adminToken
         );
 
-        $this->assertSame(200, $response['status'], $response['body'] ?? '');
-        $this->assertNotNull($response['json']);
-        $this->assertSame('success', $response['json']['status']);
+        // Verificación de la respuesta del PUT
+        $this->assertSame(200, $httpCode, 'PUT credential debería devolver HTTP 200.');
+        $this->assertSame('success', $body['status'] ?? '', 'El campo status debe ser "success".');
 
-        $consulta = $this->consultarCredencial($credencial['id']);
+        // Verificación leyendo el recurso actualizado
+        [$getCode, $getBody] = $this->getJson('credential', ['id' => $credencial['id']], $this->adminToken);
 
-        $this->assertSame(200, $consulta['status'], $consulta['body'] ?? '');
-        $this->assertNotNull($consulta['json']);
-        $this->assertSame('success', $consulta['json']['status']);
-        $this->assertSame($nuevaFecha, $consulta['json']['data']['fecha_vencimiento']);
+        $this->assertSame(200, $getCode, 'GET credential debería devolver HTTP 200.');
+        $this->assertSame('success', $getBody['status'] ?? '');
+        $this->assertSame(
+            $nuevaFecha,
+            $getBody['data']['fecha_vencimiento'] ?? null,
+            'La fecha de vencimiento almacenada debe coincidir con la enviada.'
+        );
 
-        if (isset($consulta['json']['data']['sellos'])) {
-            $sellosNormalizados = $this->normalizarSellos($consulta['json']['data']['sellos']);
-            $this->assertEqualsCanonicalizing($nuevosSellos, $sellosNormalizados);
+        // Verificación de sellos (si el endpoint los devuelve)
+        if (isset($getBody['data']['sellos'])) {
+            $sellosNormalizados = $this->normalizarSellos($getBody['data']['sellos']);
+            $this->assertEqualsCanonicalizing(
+                $nuevosSellos,
+                $sellosNormalizados,
+                'Los sellos almacenados deben coincidir con los enviados (sin importar el orden).'
+            );
         }
     }
 
     // =====================================================================
-    // ADMIN_006 - Renovacion de credencial vigente
+    // ADMIN_006 — Renovación de credencial vigente
     // =====================================================================
+
+    #[Test]
+    #[TestDox('ADMIN_006 - Una credencial vigente se renueva con fecha posterior a la original (HTTP 200)')]
     public function testRenovacionDeCredencialVigente(): void
     {
-        $usuario = $this->crearUsuarioDeTesting();
+        $usuario        = $this->crearUsuarioDePrueba();
+        $fechaOriginal  = (new \DateTimeImmutable('today +60 days'))->format('Y-m-d');
+        $credencial     = $this->crearCredencialDeTesting($usuario->getId(), '+60 days', ['Sello Vigente']);
 
-        $fechaOriginal = (new DateTimeImmutable('today +60 days'))->format('Y-m-d');
-
-        $credencial = $this->crearCredencialDeTesting(
-            $usuario['id'],
-            $fechaOriginal,
-            ['Sello Vigente']
-        );
-
-        $response = $this->requestJson(
-            'POST',
-            '?action=credential&sub=renew&id=' . $credencial['id'],
+        // Acción: renovar vía POST con sub=renew
+        [$httpCode, $body] = $this->postJsonConQueryExtra(
+            'credential',
+            ['sub' => 'renew', 'id' => $credencial['id']],
             [],
-            $this->authHeaders()
+            $this->adminToken
         );
 
-        $this->assertSame(200, $response['status'], $response['body'] ?? '');
-        $this->assertNotNull($response['json']);
-        $this->assertSame('success', $response['json']['status']);
+        $this->assertSame(200, $httpCode, 'POST renew debería devolver HTTP 200.');
+        $this->assertSame('success', $body['status'] ?? '');
 
-        $idRenovada = $this->obtenerIdCredencialRenovada($response, $credencial['id']);
-        $this->credencialesCreadas[] = $idRenovada;
+        // Registrar la credencial renovada para limpiarla en tearDown
+        $idRenovada = $this->extraerIdRenovada($body, $credencial['id']);
+        if ($idRenovada !== $credencial['id']) {
+            $this->credencialesRenovadasIds[] = $idRenovada;
+        }
 
-        $fechaRenovada = $this->obtenerFechaCredencialDesdeRespuestaOConsulta($response, $idRenovada);
-
+        $fechaRenovada = $this->extraerFechaRenovada($body, $idRenovada);
         $this->assertNotEmpty($fechaRenovada, 'No se pudo obtener la fecha de vencimiento renovada.');
 
         $this->assertGreaterThan(
             strtotime($fechaOriginal),
             strtotime($fechaRenovada),
-            'La credencial vigente renovada deberia tener una fecha posterior a la original.'
+            'La credencial vigente renovada debe tener una fecha posterior a la original.'
         );
     }
 
     // =====================================================================
-    // ADMIN_006 - Renovacion de credencial vencida
+    // ADMIN_006 — Renovación de credencial vencida
     // =====================================================================
+
+    #[Test]
+    #[TestDox('ADMIN_006 - Una credencial vencida se renueva sumando un año desde hoy (HTTP 200)')]
     public function testRenovacionDeCredencialVencida(): void
     {
-        $usuario = $this->crearUsuarioDeTesting();
+        $usuario    = $this->crearUsuarioDePrueba();
+        $credencial = $this->crearCredencialDeTesting($usuario->getId(), '-60 days', ['Sello Vencido']);
 
-        $fechaVencida = (new DateTimeImmutable('today -60 days'))->format('Y-m-d');
-
-        $credencial = $this->crearCredencialDeTesting(
-            $usuario['id'],
-            $fechaVencida,
-            ['Sello Vencido']
-        );
-
-        $response = $this->requestJson(
-            'POST',
-            '?action=credential&sub=renew&id=' . $credencial['id'],
+        [$httpCode, $body] = $this->postJsonConQueryExtra(
+            'credential',
+            ['sub' => 'renew', 'id' => $credencial['id']],
             [],
-            $this->authHeaders()
+            $this->adminToken
         );
 
-        $this->assertSame(200, $response['status'], $response['body'] ?? '');
-        $this->assertNotNull($response['json']);
-        $this->assertSame('success', $response['json']['status']);
+        $this->assertSame(200, $httpCode, 'POST renew debería devolver HTTP 200.');
+        $this->assertSame('success', $body['status'] ?? '');
 
-        $idRenovada = $this->obtenerIdCredencialRenovada($response, $credencial['id']);
-        $this->credencialesCreadas[] = $idRenovada;
+        $idRenovada = $this->extraerIdRenovada($body, $credencial['id']);
+        if ($idRenovada !== $credencial['id']) {
+            $this->credencialesRenovadasIds[] = $idRenovada;
+        }
 
-        $fechaRenovada = $this->obtenerFechaCredencialDesdeRespuestaOConsulta($response, $idRenovada);
-
-        $fechaEsperada = (new DateTimeImmutable('today +1 year'))->format('Y-m-d');
+        $fechaRenovada = $this->extraerFechaRenovada($body, $idRenovada);
+        $fechaEsperada = (new \DateTimeImmutable('today +1 year'))->format('Y-m-d');
 
         $this->assertSame(
             $fechaEsperada,
             $fechaRenovada,
-            'Una credencial vencida debe renovarse sumando un año desde la fecha actual.'
+            'Una credencial vencida debe renovarse sumando exactamente un año desde hoy.'
         );
     }
 
-    private function crearUsuarioDeTesting(): array
+    // =====================================================================
+    // Helpers de preparación de datos
+    // =====================================================================
+
+    /**
+     * Crea una credencial de prueba vía API para el usuario dado.
+     * Devuelve ['id', 'fecha_vencimiento', 'sellos'].
+     *
+     * La credencial no se registra en $createdUserIds porque se elimina
+     * automáticamente por ON DELETE CASCADE al borrar el usuario.
+     *
+     * @param int|string $idUsuario
+     * @param string     $offsetFecha  Offset relativo a hoy en formato DateTimeImmutable
+     *                                 (ej. '+30 days', '-60 days')
+     * @param string[]   $sellos
+     */
+    private function crearCredencialDeTesting(int|string $idUsuario, string $offsetFecha, array $sellos): array
     {
-        $random = random_int(10000, 99999);
+        $fechaVencimiento = (new \DateTimeImmutable('today ' . $offsetFecha))->format('Y-m-d');
 
-        $payload = [
-            'usuario' => 'credadmin_test_' . $random,
-            'password' => 'Test123456',
-            'nombre' => 'Credencial',
-            'apellido' => 'Admin',
-            'dni' => (string) random_int(50000000, 59999999),
-            'email' => 'credadmin_test_' . $random . '@mail.com',
-            'rol' => 'usuario',
-        ];
-
-        $response = $this->requestJson(
-            'POST',
-            '?action=user',
-            $payload,
-            $this->authHeaders()
-        );
-
-        $this->assertSame(201, $response['status'], 'No se pudo crear el usuario de testing. ' . ($response['body'] ?? ''));
-        $this->assertNotNull($response['json']);
-
-        $id = $response['json']['data']['id'] ?? null;
-
-        $this->assertNotNull($id, 'No se obtuvo el ID del usuario creado.');
-
-        $this->usuariosCreados[] = $id;
-
-        return [
-            'id' => $id,
-            'usuario' => $payload['usuario'],
-            'email' => $payload['email'],
-        ];
-    }
-
-    private function crearCredencialDeTesting(int|string $idUsuario, string $fechaVencimiento, array $sellos): array
-    {
-        $response = $this->requestJson(
-            'POST',
-            '?action=credential',
+        [$httpCode, $body] = $this->postJson(
+            'credential',
             [
-                'id_usuario' => $idUsuario,
+                'id_usuario'        => $idUsuario,
                 'fecha_vencimiento' => $fechaVencimiento,
-                'sellos' => $sellos,
+                'sellos'            => $sellos,
             ],
-            $this->authHeaders()
+            $this->adminToken
         );
 
         $this->assertContains(
-            $response['status'],
+            $httpCode,
             [200, 201],
-            'No se pudo crear la credencial de testing. ' . ($response['body'] ?? '')
+            'No se pudo crear la credencial de testing. HTTP ' . $httpCode
         );
+        $this->assertSame('success', $body['status'] ?? '');
 
-        $this->assertNotNull($response['json']);
-
-        $id = $response['json']['data']['id'] ?? null;
-
-        $this->assertNotNull($id, 'No se obtuvo el ID de la credencial creada.');
-
-        $this->credencialesCreadas[] = $id;
+        $id = $body['data']['id'] ?? null;
+        $this->assertNotNull($id, 'El endpoint no devolvió el ID de la credencial creada.');
 
         return [
-            'id' => $id,
+            'id'                => $id,
             'fecha_vencimiento' => $fechaVencimiento,
-            'sellos' => $sellos,
+            'sellos'            => $sellos,
         ];
     }
 
-    private function consultarCredencial(int|string $id): array
-    {
-        return $this->requestJson(
-            'GET',
-            '?action=credential&id=' . $id,
-            [],
-            $this->authHeaders()
-        );
+    // =====================================================================
+    // Helpers HTTP especializados
+    // =====================================================================
+
+    /**
+     * POST con query params adicionales arbitrarios (ej. sub=renew&id=5).
+     *
+     * Los helpers postJson/getJson de IntegrationTestCase construyen la URL
+     * como ?action=X, pero el endpoint de renovación necesita ?action=credential&sub=renew&id=N.
+     * Este helper usa makeRequest() que admite la URI completa.
+     *
+     * @param string      $action      Valor del parámetro ?action=
+     * @param array       $extraParams Parámetros adicionales de query string (sub, id, etc.)
+     * @param array       $payload     Body JSON
+     * @param string|null $token       JWT
+     *
+     * @return array{int, array}  [httpCode, body decodificado]
+     */
+    private function postJsonConQueryExtra(
+        string  $action,
+        array   $extraParams,
+        array   $payload  = [],
+        ?string $token    = null,
+    ): array {
+        $query = '?action=' . $action;
+        foreach ($extraParams as $key => $value) {
+            $query .= '&' . urlencode((string) $key) . '=' . urlencode((string) $value);
+        }
+
+        return self::makeRequest('POST', $query, $payload, $token);
     }
 
-    private function obtenerIdCredencialRenovada(array $response, int|string $idOriginal): int|string
+    // =====================================================================
+    // Helpers de extracción de datos de respuesta
+    // =====================================================================
+
+    /**
+     * Extrae el ID de la credencial resultante de la renovación.
+     * Prueba las claves que el endpoint podría devolver (nueva_id, id_nueva, id).
+     * Si ninguna existe o coincide con el ID original, devuelve el original.
+     *
+     * @param int|string $idOriginal
+     * @return int|string
+     */
+    private function extraerIdRenovada(array $body, int|string $idOriginal): int|string
     {
-        $data = $response['json']['data'] ?? [];
+        $data = $body['data'] ?? [];
 
         return $data['nueva_id']
             ?? $data['id_nueva']
@@ -257,112 +297,43 @@ final class CredentialManagementTest extends TestCase
             ?? $idOriginal;
     }
 
-    private function obtenerFechaCredencialDesdeRespuestaOConsulta(array $response, int|string $idCredencial): string
+    /**
+     * Obtiene la fecha de vencimiento de la credencial renovada.
+     * Primero intenta leerla del body de la respuesta; si no viene,
+     * consulta el recurso vía GET.
+     *
+     * @param int|string $idCredencial
+     */
+    private function extraerFechaRenovada(array $body, int|string $idCredencial): string
     {
-        $fecha = $response['json']['data']['fecha_vencimiento'] ?? null;
-
+        $fecha = $body['data']['fecha_vencimiento'] ?? null;
         if (!empty($fecha)) {
             return $fecha;
         }
 
-        $consulta = $this->consultarCredencial($idCredencial);
+        [$getCode, $getBody] = $this->getJson('credential', ['id' => $idCredencial], $this->adminToken);
 
-        $this->assertSame(200, $consulta['status'], $consulta['body'] ?? '');
-        $this->assertNotNull($consulta['json']);
+        $this->assertSame(200, $getCode, 'No se pudo consultar la credencial renovada. HTTP ' . $getCode);
+        $this->assertSame('success', $getBody['status'] ?? '');
 
-        return $consulta['json']['data']['fecha_vencimiento'] ?? '';
+        return $getBody['data']['fecha_vencimiento'] ?? '';
     }
 
+    /**
+     * Normaliza un array de sellos que puede venir como strings o como objetos
+     * (arrays asociativos con clave 'nombre', 'name' o 'descripcion').
+     *
+     * @param  array<int, string|array<string,string>> $sellos
+     * @return string[]
+     */
     private function normalizarSellos(array $sellos): array
     {
-        return array_map(function ($sello) {
+        return array_map(static function (mixed $sello): string {
             if (is_array($sello)) {
-                return $sello['nombre']
-                    ?? $sello['name']
-                    ?? $sello['descripcion']
-                    ?? '';
+                return $sello['nombre'] ?? $sello['name'] ?? $sello['descripcion'] ?? '';
             }
 
             return (string) $sello;
         }, $sellos);
     }
-
-    private function authHeaders(): array
-    {
-        return [
-            'Authorization: Bearer ' . $this->getAdminToken(),
-        ];
-    }
-
-    private function getAdminToken(): string
-    {
-        if (self::$adminToken !== null) {
-            return self::$adminToken;
-        }
-
-        $response = $this->requestJson(
-            'POST',
-            '?action=login',
-            [
-                'identificador' => 'admin',
-                'password' => '123456',
-            ]
-        );
-
-        $this->assertSame(200, $response['status'], 'No se pudo iniciar sesion como admin. ' . ($response['body'] ?? ''));
-        $this->assertNotNull($response['json']);
-
-        $token = $response['json']['data']['token'] ?? null;
-
-        $this->assertNotEmpty($token, 'No se obtuvo token JWT en el login admin.');
-
-        self::$adminToken = $token;
-
-        return self::$adminToken;
-    }
-
-    private function requestJson(
-        string $method,
-        string $query,
-        array $payload = [],
-        array $extraHeaders = []
-    ): array {
-        $ch = curl_init($this->baseUrl . $query);
-
-        $headers = array_merge(
-            ['Content-Type: application/json'],
-            $extraHeaders
-        );
-
-        $options = [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER => false,
-        ];
-
-        if (!empty($payload) || in_array($method, ['POST', 'PUT'], true)) {
-            $options[CURLOPT_POSTFIELDS] = json_encode($payload);
-        }
-
-        curl_setopt_array($ch, $options);
-
-        $body = curl_exec($ch);
-        $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-
-        $json = null;
-
-        if (is_string($body) && $body !== '') {
-            $json = json_decode($body, true);
-        }
-
-        return [
-            'status' => $status,
-            'body' => $body,
-            'json' => $json,
-            'error' => $error,
-        ];
-    }
 }
-
