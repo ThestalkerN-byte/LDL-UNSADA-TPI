@@ -11,3 +11,6 @@
 
 # Script de creación de admin (datos sensibles, nunca al repo)
 create_admin.sql
+
+## Cache de phpunit
+.phpunit.cache/
