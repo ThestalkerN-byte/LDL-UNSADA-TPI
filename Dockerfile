@@ -2,7 +2,7 @@
 # Dockerfile — LDL-UNSADA-TPI
 # PHP 8.2 + Apache + Extensiones MySQL + Composer
 # ──────────────────────────────────────────────────────────────
-FROM php:8.2-apache
+FROM php:8.4-apache
 
 # 1. Instalar dependencias del sistema y extensiones PHP necesarias
 RUN apt-get update && apt-get install -y \
